@@ -282,6 +282,18 @@ photoolz people label 2 "Bob"
 photoolz search "birthday" --person Alice
 ```
 
+The same person may appear as multiple clusters if their appearance changed significantly over time (e.g. photos spanning many years). Use `people merge` to consolidate them:
+
+```bash
+# Merge clusters 2, 7, and 12 into one
+photoolz people merge 2 7 12
+
+# Then label the merged cluster if needed
+photoolz people label 2 "Sophie"
+```
+
+The largest cluster survives the merge. If any of the clusters already have a name, that name is preserved on the surviving record.
+
 ---
 
 ### `photoolz stats` — library overview
