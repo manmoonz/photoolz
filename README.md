@@ -41,15 +41,27 @@ brew install cmake dlib
 ### Install
 
 ```bash
-# Create and activate a virtual environment
+# Create a virtual environment
 python3 -m venv ~/.venvs/photoolz
+
+# Activate it — you need to do this in every new shell session before using photoolz
 source ~/.venvs/photoolz/bin/activate
 
-# Install dlib first (compilation takes a few minutes)
+# Install dlib before anything else — it compiles from source and takes ~5 minutes
 pip install dlib
 
-# Install photoolz and all other dependencies
+# Install photoolz and all remaining dependencies
+# Note: torch alone is ~2 GB, so this download will take a while
 pip install -e /path/to/photoolz
+```
+
+The install order matters: `face_recognition` depends on `dlib`, so `dlib` must be installed first or `pip` will fail trying to build it as a transitive dependency.
+
+Every time you open a new terminal, activate the venv before running any `photoolz` commands:
+
+```bash
+source ~/.venvs/photoolz/bin/activate
+photoolz --help
 ```
 
 ### Configure
