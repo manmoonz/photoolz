@@ -38,7 +38,7 @@ def print_photo_table(photos: list[dict], columns: list[str] | None = None) -> N
     cols = columns or default_cols
     table = Table(show_header=True, header_style="bold cyan")
     for col in cols:
-        table.add_column(col)
+        table.add_column(col, no_wrap=(col == "file_path"))
     for p in photos:
         row = []
         for col in cols:
