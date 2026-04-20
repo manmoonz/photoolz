@@ -466,6 +466,17 @@ def get_photo_count_under_path(conn: sqlite3.Connection, root: str) -> int:
 def delete_photos_under_path(conn: sqlite3.Connection, root: str) -> int:
     prefix = root.rstrip("/") + "/"
     with _write_lock:
+        # Clear representative_photo_id references before deletion to avoid
+        # the bare REFERENCES photos(id) FK constraint on the people table.
+        conn.execute(
+            """
+            UPDATE people SET representative_photo_id = NULL
+            WHERE representative_photo_id IN (
+                SELECT id FROM photos WHERE file_path LIKE ?
+            )
+            """,
+            (prefix + "%",),
+        )
         cur = conn.execute(
             "DELETE FROM photos WHERE file_path LIKE ?", (prefix + "%",)
         )
