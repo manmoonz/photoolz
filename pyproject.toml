@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "photoolz"
+version = "0.1.0"
+description = "Modular photo library management tools"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.1.0",
+    "rich>=13.7.0",
+    "tqdm>=4.66.0",
+    "Pillow>=10.3.0",
+    "imagehash>=4.3.1",
+    "piexif>=1.1.3",
+    "open_clip_torch>=2.24.0",
+    "torch>=2.2.0",
+    "torchvision>=0.17.0",
+    "faiss-cpu>=1.8.0",
+    "face_recognition>=1.3.0",
+    "scikit-learn>=1.4.0",
+    "numpy>=1.26.0",
+    "exifread>=3.0.0",
+    "anthropic>=0.28.0",
+    "opencv-python-headless>=4.9.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+photoolz = "photoolz.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["photoolz*"]
