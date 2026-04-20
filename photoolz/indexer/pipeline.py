@@ -112,10 +112,23 @@ def run_index_pipeline(
             progress.advance(task, len(batch_paths))
 
     # Phase 4: quality scores
-    console.print("[bold]Computing quality scores...[/bold]")
-    from photoolz.quality.scorer import score_all_unscored
-    scored = score_all_unscored(conn, config)
-    console.print(f"Scored [cyan]{scored}[/cyan] photos.")
+    try:
+        import cv2  # noqa: F401
+        have_cv2 = True
+    except ImportError:
+        have_cv2 = False
+
+    if not have_cv2:
+        console.print(
+            "[yellow]Warning: opencv-python-headless is not installed — skipping quality scoring.[/yellow]\n"
+            "[dim]To enable it: pip install opencv-python-headless[/dim]\n"
+            "[dim]Then re-run: photoolz index <path> --force[/dim]"
+        )
+    else:
+        console.print("[bold]Computing quality scores...[/bold]")
+        from photoolz.quality.scorer import score_all_unscored
+        scored = score_all_unscored(conn, config)
+        console.print(f"Scored [cyan]{scored}[/cyan] photos.")
 
     # Phase 5: face detection (optional, parallel)
     from photoolz.indexer.faces import is_face_recognition_available
@@ -128,29 +141,25 @@ def run_index_pipeline(
         skip_faces = True
 
     if not skip_faces:
+        console.print("[bold]Detecting faces...[/bold]")
         face_paths = [(path, photo_id_map[str(path)])
                       for path, _ in to_index if str(path) in photo_id_map]
 
-        def _detect_faces(item: tuple[Path, int]) -> int:
-            path, photo_id = item
-            faces = detect_and_encode_faces(path)
-            for face in faces:
-                face["photo_id"] = photo_id
-                face["detected_at"] = now
-                try:
-                    upsert_face(conn, face)
-                except Exception:
-                    pass
-            return len(faces)
-
+        # dlib's HOG detector is not thread-safe — must run sequentially
         total_faces = 0
         with make_progress("Detecting faces", len(face_paths)) as progress:
             task = progress.add_task("Detecting faces", total=len(face_paths))
-            with ThreadPoolExecutor(max_workers=workers) as executor:
-                futures = [executor.submit(_detect_faces, item) for item in face_paths]
-                for future in as_completed(futures):
-                    total_faces += future.result()
-                    progress.advance(task)
+            for path, photo_id in face_paths:
+                faces = detect_and_encode_faces(path)
+                for face in faces:
+                    face["photo_id"] = photo_id
+                    face["detected_at"] = now
+                    try:
+                        upsert_face(conn, face)
+                    except Exception:
+                        pass
+                total_faces += len(faces)
+                progress.advance(task)
 
         console.print(f"Found [cyan]{total_faces}[/cyan] faces in {len(face_paths)} photos.")
 
