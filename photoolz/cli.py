@@ -68,9 +68,12 @@ def index(library_path: Path, workers: int, force: bool,
 @click.option("--location", default=None, help="Filter by geo cluster label.")
 @click.option("--output", default="table",
               type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
+@click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
+@click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
 @click.option("--library", default=None, help="Library path (if not already indexed from here).")
 def search(query: str, top_k: int, since: str | None, until: str | None,
-           person: str | None, location: str | None, output: str, library: str | None):
+           person: str | None, location: str | None, output: str,
+           open_viewer: bool, viewer: str | None, library: str | None):
     """Search photos by content and/or date."""
     from photoolz.search.query import semantic_search
     from photoolz.utils.console import print_photo_table
@@ -95,6 +98,10 @@ def search(query: str, top_k: int, since: str | None, until: str | None,
     else:
         print_photo_table(results, columns=_COLS)
 
+    if open_viewer:
+        from photoolz.utils.viewer import open_in_viewer
+        open_in_viewer([r["file_path"] for r in results], viewer)
+
 
 # ---------------------------------------------------------------------------
 # quality
@@ -108,9 +115,11 @@ def search(query: str, top_k: int, since: str | None, until: str | None,
               type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
 @click.option("--mark-deleted", is_flag=True,
               help="Flag worst photos as deleted in the index (does NOT delete files).")
+@click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
+@click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
 @click.option("--library", default=None)
 def quality(blur_threshold: float, worst: int, output: str,
-            mark_deleted: bool, library: str | None):
+            mark_deleted: bool, open_viewer: bool, viewer: str | None, library: str | None):
     """Find low-quality photos (blur, exposure)."""
     from photoolz.db import get_worst_quality_photos, mark_deleted as db_mark_deleted
     from photoolz.utils.console import print_photo_table
@@ -134,6 +143,10 @@ def quality(blur_threshold: float, worst: int, output: str,
     else:
         print_photo_table(photos, columns=_COLS)
 
+    if open_viewer:
+        from photoolz.utils.viewer import open_in_viewer
+        open_in_viewer([p["file_path"] for p in photos], viewer)
+
     if mark_deleted:
         for p in photos:
             db_mark_deleted(conn, p["id"], "quality")
@@ -153,9 +166,11 @@ def quality(blur_threshold: float, worst: int, output: str,
               type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
 @click.option("--mark-deleted", is_flag=True,
               help="Flag the lower-quality duplicate in each group as deleted.")
+@click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
+@click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
 @click.option("--library", default=None)
 def duplicates(similarity: float, hamming_dist: int, output: str,
-               mark_deleted: bool, library: str | None):
+               mark_deleted: bool, open_viewer: bool, viewer: str | None, library: str | None):
     """Find near-duplicate photos."""
     from photoolz.quality.duplicates import find_near_duplicates
     from photoolz.db import mark_deleted as db_mark_deleted
@@ -179,6 +194,10 @@ def duplicates(similarity: float, hamming_dist: int, output: str,
         print_csv(flat, _COLS)
     else:
         print_duplicate_groups(groups)
+
+    if open_viewer and groups:
+        from photoolz.utils.viewer import open_in_viewer
+        open_in_viewer([p["file_path"] for g in groups for p in g], viewer)
 
     if mark_deleted and groups:
         flagged = 0
@@ -210,10 +229,13 @@ def album():
 @click.option("--save", is_flag=True, help="Save album to the index database.")
 @click.option("--output", default="table",
               type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
+@click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
+@click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
 @click.option("--library", default=None)
 def album_propose(query: str, count: int, candidates: int, model: str,
                   since: str | None, until: str | None, location: str | None,
-                  save: bool, output: str, library: str | None):
+                  save: bool, output: str, open_viewer: bool, viewer: str | None,
+                  library: str | None):
     """Propose a photo album using Claude AI."""
     from photoolz.albums.candidates import retrieve_candidates
     from photoolz.albums.curator import propose_album
@@ -250,6 +272,10 @@ def album_propose(query: str, count: int, candidates: int, model: str,
     else:
         print_album(result)
         print_photo_table(photo_dicts, columns=_COLS)
+
+    if open_viewer:
+        from photoolz.utils.viewer import open_in_viewer
+        open_in_viewer([p["file_path"] for p in photo_dicts], viewer)
 
     if save:
         album_id = save_album(conn, result["title"], result["description"],
@@ -289,8 +315,10 @@ def album_list(limit: int, library: str | None):
 @click.argument("album_id", type=int)
 @click.option("--output", default="table",
               type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
+@click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
+@click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
 @click.option("--library", default=None)
-def album_show(album_id: int, output: str, library: str | None):
+def album_show(album_id: int, output: str, open_viewer: bool, viewer: str | None, library: str | None):
     """Show photos in a saved album."""
     from photoolz.db import get_album, get_album_photos
     from photoolz.utils.console import print_photo_table
@@ -319,6 +347,10 @@ def album_show(album_id: int, output: str, library: str | None):
         print_csv(photo_dicts, _COLS)
     else:
         print_photo_table(photo_dicts, columns=_COLS)
+
+    if open_viewer:
+        from photoolz.utils.viewer import open_in_viewer
+        open_in_viewer([p["file_path"] for p in photo_dicts], viewer)
 
 
 # ---------------------------------------------------------------------------
@@ -359,8 +391,10 @@ def cluster_geo(eps_km: float, min_samples: int, library: str | None):
 @cluster.command("bursts")
 @click.option("--gap-seconds", default=3, show_default=True,
               help="Max seconds between burst frames.")
+@click.option("--open", "open_viewer", is_flag=True, help="Open best frames in an image viewer.")
+@click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
 @click.option("--library", default=None)
-def cluster_bursts(gap_seconds: int, library: str | None):
+def cluster_bursts(gap_seconds: int, open_viewer: bool, viewer: str | None, library: str | None):
     """Detect burst photo sequences."""
     from photoolz.clustering.burst import detect_bursts, get_burst_best_frames
     from photoolz.utils.console import print_photo_table
@@ -375,6 +409,9 @@ def cluster_bursts(gap_seconds: int, library: str | None):
             best_frames,
             columns=["id", "file_path", "taken_at", "quality_score", "burst_size"],
         )
+        if open_viewer:
+            from photoolz.utils.viewer import open_in_viewer
+            open_in_viewer([f["file_path"] for f in best_frames], viewer)
 
 
 # ---------------------------------------------------------------------------

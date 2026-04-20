@@ -367,6 +367,61 @@ photoolz album show 1 --output paths
 
 ---
 
+### `photoolz dirs` — list indexed directories
+
+```bash
+photoolz dirs
+```
+
+Shows all directories that have been indexed, along with the photo count and first/last indexed dates.
+
+---
+
+### `photoolz unindex` — remove a directory from the index
+
+Deletes all photos under the given path from the index and rebuilds the FAISS index. Files on disk are not touched.
+
+```bash
+# Remove with confirmation prompt
+photoolz unindex ~/Pictures/OldTrip/
+
+# Skip confirmation
+photoolz unindex ~/Pictures/OldTrip/ --force
+```
+
+---
+
+## Opening results in an image viewer
+
+Any command that outputs a photo list supports `--open` to launch the results directly in an image viewer:
+
+```bash
+# Open quality candidates in feh
+photoolz quality --open
+
+# Open search results in a specific viewer
+photoolz search "beach sunset" --open --viewer feh
+
+# Open duplicate groups for visual comparison
+photoolz duplicates --open
+
+# Open an album
+photoolz album show 3 --open
+
+# Open burst best frames
+photoolz cluster bursts --open
+```
+
+Viewer auto-detection tries: `feh`, `eog`, `xviewer`, `shotwell`, `gthumb`, `xdg-open` (Linux), `open` (macOS). You can also set a default in `.env`:
+
+```ini
+PHOTOOLZ_VIEWER=feh
+```
+
+`feh` is recommended on Linux — install it with `sudo apt-get install feh`. The `--open` flag fires after terminal output, so `--output table --open` gives you the table and the viewer simultaneously.
+
+---
+
 ## Output formats
 
 Most commands support `--output` with these choices:
