@@ -402,14 +402,16 @@ def people_list(library: str | None):
         return
 
     table = Table(title="People", show_header=True, header_style="bold cyan")
-    for col in ["ID", "Name", "Faces", "Representative Photo"]:
-        table.add_column(col)
+    table.add_column("ID")
+    table.add_column("Name")
+    table.add_column("Faces")
+    table.add_column("Representative Photo", no_wrap=True)
     for r in rows:
         table.add_row(
             str(r["id"]),
             r["name"] or "[dim]unlabeled[/dim]",
             str(r["face_count"]),
-            (r["rep_path"] or "")[:60],
+            r["rep_path"] or "",
         )
     console.print(table)
 
