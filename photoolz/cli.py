@@ -388,6 +388,32 @@ def people_label(person_id: int, name: str, library: str | None):
     console.print(f"[green]Person {person_id} labeled as '{name}'.[/green]")
 
 
+@people.command("merge")
+@click.argument("person_ids", nargs=-1, type=int, required=True)
+@click.option("--library", default=None)
+def people_merge(person_ids: tuple[int, ...], library: str | None):
+    """Merge multiple face clusters into one person.
+
+    Example: photoolz people merge 2 7 12
+    """
+    from photoolz.db import merge_people
+
+    if len(person_ids) < 2:
+        console.print("[red]Provide at least two person IDs to merge.[/red]")
+        raise SystemExit(1)
+
+    conn, _ = _get_conn_and_config(library)
+    try:
+        survivor_id = merge_people(conn, list(person_ids))
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise SystemExit(1)
+
+    console.print(
+        f"[green]Merged {len(person_ids)} clusters into person ID {survivor_id}.[/green]"
+    )
+
+
 @people.command("list")
 @click.option("--library", default=None)
 def people_list(library: str | None):

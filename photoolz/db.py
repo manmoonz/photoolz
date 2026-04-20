@@ -302,6 +302,56 @@ def label_person(conn: sqlite3.Connection, person_id: int, name: str) -> None:
         conn.commit()
 
 
+def merge_people(conn: sqlite3.Connection, person_ids: list[int]) -> int:
+    """Merge multiple people clusters into one. Returns the surviving person ID.
+
+    The surviving record keeps the first name found among the merged clusters
+    (preferring explicitly labeled ones). All faces are reassigned to it and
+    the other records are deleted.
+    """
+    placeholders = ",".join("?" * len(person_ids))
+    rows = conn.execute(
+        f"SELECT id, name, face_count, representative_photo_id FROM people "
+        f"WHERE id IN ({placeholders}) ORDER BY face_count DESC",
+        person_ids,
+    ).fetchall()
+
+    if not rows:
+        raise ValueError(f"No people found with IDs: {person_ids}")
+
+    # Pick the survivor: largest cluster, but prefer one that has a name
+    named = [r for r in rows if r["name"]]
+    survivor = named[0] if named else rows[0]
+    survivor_id = survivor["id"]
+    others = [r["id"] for r in rows if r["id"] != survivor_id]
+
+    # Inherit a name from any named cluster if the survivor is unlabeled
+    surviving_name = survivor["name"]
+    if not surviving_name and named:
+        surviving_name = named[0]["name"]
+
+    # Total face count across all merged clusters
+    total_faces = sum(r["face_count"] for r in rows)
+
+    with _write_lock:
+        # Reassign all faces from the other clusters to the survivor
+        if others:
+            conn.executemany(
+                "UPDATE faces SET person_id=? WHERE person_id=?",
+                [(survivor_id, oid) for oid in others],
+            )
+            other_placeholders = ",".join("?" * len(others))
+            conn.execute(f"DELETE FROM people WHERE id IN ({other_placeholders})", others)
+
+        conn.execute(
+            "UPDATE people SET name=?, face_count=? WHERE id=?",
+            (surviving_name, total_faces, survivor_id),
+        )
+        conn.commit()
+
+    return survivor_id
+
+
 def get_people(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
         "SELECT p.*, ph.file_path as rep_path FROM people p "
