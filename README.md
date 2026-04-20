@@ -53,9 +53,14 @@ pip install dlib
 # Install photoolz and all remaining dependencies
 # Note: torch alone is ~2 GB, so this download will take a while
 pip install -e /path/to/photoolz
+
+# Install face_recognition as a separate step after dlib is confirmed working
+pip install face_recognition
 ```
 
-The install order matters: `face_recognition` depends on `dlib`, so `dlib` must be installed first or `pip` will fail trying to build it as a transitive dependency.
+**Why the order matters:** `face_recognition` depends on `dlib`. If you let `pip` install them together it will try to build `dlib` without the system libraries in place and fail. Installing `dlib` first lets you confirm it compiles cleanly before proceeding.
+
+**face_recognition is optional.** If it is not installed, `photoolz index` will still run but will print a warning and skip face detection. The `photoolz cluster faces` and `photoolz people` commands will have nothing to work with. You can install it later and re-run `photoolz index --force` to backfill face data.
 
 Every time you open a new terminal, activate the venv before running any `photoolz` commands:
 

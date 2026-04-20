@@ -3,6 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 
+def is_face_recognition_available() -> bool:
+    try:
+        import face_recognition  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def detect_and_encode_faces(path: Path, model: str = "hog") -> list[dict]:
     try:
         import face_recognition

@@ -118,8 +118,16 @@ def run_index_pipeline(
     console.print(f"Scored [cyan]{scored}[/cyan] photos.")
 
     # Phase 5: face detection (optional, parallel)
+    from photoolz.indexer.faces import is_face_recognition_available
+    if not skip_faces and not is_face_recognition_available():
+        console.print(
+            "[yellow]Warning: face_recognition is not installed — skipping face detection.[/yellow]\n"
+            "[dim]To enable it: pip install face_recognition[/dim]\n"
+            "[dim]Then re-run: photoolz index <path> --force[/dim]"
+        )
+        skip_faces = True
+
     if not skip_faces:
-        console.print("[bold]Detecting faces...[/bold]")
         face_paths = [(path, photo_id_map[str(path)])
                       for path, _ in to_index if str(path) in photo_id_map]
 
