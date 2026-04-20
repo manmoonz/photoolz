@@ -454,6 +454,75 @@ def people_list(library: str | None):
 
 
 # ---------------------------------------------------------------------------
+# dirs
+# ---------------------------------------------------------------------------
+
+@cli.command()
+def dirs():
+    """List all previously indexed directories."""
+    from photoolz.db import list_indexed_dirs
+    from rich.table import Table
+
+    conn, _ = _get_conn_and_config()
+    rows = list_indexed_dirs(conn)
+    if not rows:
+        console.print("[yellow]No directories have been indexed yet. Run 'photoolz index <path>' first.[/yellow]")
+        return
+
+    table = Table(title="Indexed Directories", show_header=True, header_style="bold cyan")
+    table.add_column("Path", overflow="fold")
+    table.add_column("Photos", min_width=6, no_wrap=True)
+    table.add_column("First Indexed", min_width=10, no_wrap=True)
+    table.add_column("Last Indexed", min_width=10, no_wrap=True)
+    for r in rows:
+        table.add_row(
+            r["path"],
+            str(r["photo_count"]),
+            (r["first_indexed_at"] or "")[:10],
+            (r["last_indexed_at"] or "")[:10],
+        )
+    console.print(table)
+
+
+# ---------------------------------------------------------------------------
+# unindex
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.argument("path", type=click.Path(path_type=Path))
+@click.option("--force", is_flag=True, help="Skip confirmation prompt.")
+def unindex(path: Path, force: bool):
+    """Remove all photos under PATH from the index."""
+    from photoolz.db import (
+        get_photo_count_under_path,
+        delete_photos_under_path,
+        fix_people_representatives,
+        remove_indexed_dir,
+    )
+    from photoolz.search.faiss_index import build_or_update_faiss_index
+
+    abs_path = str(path.resolve())
+    conn, config = _get_conn_and_config()
+
+    count = get_photo_count_under_path(conn, abs_path)
+    if count == 0:
+        console.print(f"[yellow]No indexed photos found under {abs_path}[/yellow]")
+        return
+
+    if not force:
+        click.confirm(f"Remove {count} photos under {abs_path} from the index?", abort=True)
+
+    deleted = delete_photos_under_path(conn, abs_path)
+    fix_people_representatives(conn)
+    remove_indexed_dir(conn, abs_path)
+
+    console.print("[bold]Rebuilding FAISS index...[/bold]")
+    build_or_update_faiss_index(conn, config)
+
+    console.print(f"[green]Removed {deleted} photos. FAISS index rebuilt.[/green]")
+
+
+# ---------------------------------------------------------------------------
 # stats
 # ---------------------------------------------------------------------------
 

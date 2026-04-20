@@ -169,6 +169,11 @@ def run_index_pipeline(
     build_or_update_faiss_index(conn, config)
     console.print("[green]FAISS index updated.[/green]")
 
+    # Record this directory in indexed_dirs with a live photo count
+    from photoolz.db import upsert_indexed_dir, get_photo_count_under_path
+    live_count = get_photo_count_under_path(conn, str(library_path))
+    upsert_indexed_dir(conn, str(library_path), live_count)
+
     new_count = len(photo_id_map)
     return {
         "scanned": len(all_paths),

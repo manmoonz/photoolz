@@ -93,6 +93,14 @@ CREATE TABLE IF NOT EXISTS geo_clusters (
     photo_count INTEGER,
     clustered_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS indexed_dirs (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    path             TEXT NOT NULL UNIQUE,
+    first_indexed_at TEXT NOT NULL,
+    last_indexed_at  TEXT NOT NULL,
+    photo_count      INTEGER NOT NULL DEFAULT 0
+);
 """
 
 
@@ -422,6 +430,65 @@ def get_photos_by_ids(conn: sqlite3.Connection, photo_ids: list[int]) -> list[sq
     return conn.execute(
         f"SELECT * FROM photos WHERE id IN ({placeholders})", photo_ids
     ).fetchall()
+
+
+def upsert_indexed_dir(conn: sqlite3.Connection, path: str, photo_count: int) -> None:
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    with _write_lock:
+        conn.execute(
+            """
+            INSERT INTO indexed_dirs (path, first_indexed_at, last_indexed_at, photo_count)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(path) DO UPDATE SET
+                last_indexed_at = excluded.last_indexed_at,
+                photo_count = excluded.photo_count
+            """,
+            (path, now, now, photo_count),
+        )
+        conn.commit()
+
+
+def list_indexed_dirs(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM indexed_dirs ORDER BY last_indexed_at DESC"
+    ).fetchall()
+
+
+def get_photo_count_under_path(conn: sqlite3.Connection, root: str) -> int:
+    prefix = root.rstrip("/") + "/"
+    return conn.execute(
+        "SELECT COUNT(*) FROM photos WHERE file_path LIKE ? AND is_deleted=0",
+        (prefix + "%",),
+    ).fetchone()[0]
+
+
+def delete_photos_under_path(conn: sqlite3.Connection, root: str) -> int:
+    prefix = root.rstrip("/") + "/"
+    with _write_lock:
+        cur = conn.execute(
+            "DELETE FROM photos WHERE file_path LIKE ?", (prefix + "%",)
+        )
+        conn.commit()
+    return cur.rowcount
+
+
+def fix_people_representatives(conn: sqlite3.Connection) -> None:
+    with _write_lock:
+        conn.execute(
+            """
+            UPDATE people SET representative_photo_id = NULL
+            WHERE representative_photo_id IS NOT NULL
+              AND representative_photo_id NOT IN (SELECT id FROM photos)
+            """
+        )
+        conn.commit()
+
+
+def remove_indexed_dir(conn: sqlite3.Connection, path: str) -> None:
+    with _write_lock:
+        conn.execute("DELETE FROM indexed_dirs WHERE path = ?", (path,))
+        conn.commit()
 
 
 def get_stats(conn: sqlite3.Connection) -> dict[str, Any]:
