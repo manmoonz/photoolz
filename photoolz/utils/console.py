@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import csv
+import sys
+
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -14,6 +17,12 @@ from rich.progress import (
 from rich.table import Table
 
 console = Console()
+
+_PATH_COLS = {"file_path", "rep_path"}
+_NUMERIC_COLS = {
+    "id", "quality_score", "blur_score", "exposure_score",
+    "similarity_score", "width", "height", "burst_size", "group",
+}
 
 
 def make_progress(description: str = "Processing", total: int | None = None) -> Progress:
@@ -38,7 +47,12 @@ def print_photo_table(photos: list[dict], columns: list[str] | None = None) -> N
     cols = columns or default_cols
     table = Table(show_header=True, header_style="bold cyan")
     for col in cols:
-        table.add_column(col, no_wrap=(col == "file_path"))
+        if col in _PATH_COLS:
+            table.add_column(col, overflow="fold")
+        elif col in _NUMERIC_COLS:
+            table.add_column(col, min_width=7, no_wrap=True)
+        else:
+            table.add_column(col)
     for p in photos:
         row = []
         for col in cols:
@@ -52,6 +66,18 @@ def print_photo_table(photos: list[dict], columns: list[str] | None = None) -> N
             row.append(val)
         table.add_row(*row)
     console.print(table)
+
+
+def print_csv(rows: list[dict], columns: list[str]) -> None:
+    writer = csv.DictWriter(
+        sys.stdout,
+        fieldnames=columns,
+        extrasaction="ignore",
+        lineterminator="\n",
+    )
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({c: (row.get(c) if isinstance(row, dict) else row[c]) for c in columns})
 
 
 def print_album(album: dict) -> None:

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import click
 
-from photoolz.utils.console import console
+from photoolz.utils.console import console, print_csv
 
 
 def _get_conn_and_config(library_path: str | None = None):
@@ -67,7 +67,7 @@ def index(library_path: Path, workers: int, force: bool,
 @click.option("--person", default=None, help="Filter by person name.")
 @click.option("--location", default=None, help="Filter by geo cluster label.")
 @click.option("--output", default="table",
-              type=click.Choice(["table", "paths", "json"]), show_default=True)
+              type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
 @click.option("--library", default=None, help="Library path (if not already indexed from here).")
 def search(query: str, top_k: int, since: str | None, until: str | None,
            person: str | None, location: str | None, output: str, library: str | None):
@@ -75,6 +75,7 @@ def search(query: str, top_k: int, since: str | None, until: str | None,
     from photoolz.search.query import semantic_search
     from photoolz.utils.console import print_photo_table
 
+    _COLS = ["id", "file_path", "taken_at", "similarity_score", "quality_score"]
     conn, config = _get_conn_and_config(library)
     results = semantic_search(query, conn, config, top_k=top_k,
                                since=since, until=until,
@@ -89,11 +90,10 @@ def search(query: str, top_k: int, since: str | None, until: str | None,
             click.echo(r["file_path"])
     elif output == "json":
         click.echo(json.dumps(results, default=str, indent=2))
+    elif output == "csv":
+        print_csv(results, _COLS)
     else:
-        print_photo_table(
-            results,
-            columns=["id", "file_path", "taken_at", "similarity_score", "quality_score"],
-        )
+        print_photo_table(results, columns=_COLS)
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +105,7 @@ def search(query: str, top_k: int, since: str | None, until: str | None,
               help="Laplacian variance threshold for sharpness.")
 @click.option("--worst", default=50, show_default=True, help="Show N worst photos.")
 @click.option("--output", default="table",
-              type=click.Choice(["table", "paths", "json"]), show_default=True)
+              type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
 @click.option("--mark-deleted", is_flag=True,
               help="Flag worst photos as deleted in the index (does NOT delete files).")
 @click.option("--library", default=None)
@@ -115,6 +115,7 @@ def quality(blur_threshold: float, worst: int, output: str,
     from photoolz.db import get_worst_quality_photos, mark_deleted as db_mark_deleted
     from photoolz.utils.console import print_photo_table
 
+    _COLS = ["id", "file_path", "taken_at", "blur_score", "exposure_score", "quality_score"]
     conn, config = _get_conn_and_config(library)
     rows = get_worst_quality_photos(conn, limit=worst)
     photos = [dict(r) for r in rows]
@@ -128,11 +129,10 @@ def quality(blur_threshold: float, worst: int, output: str,
             click.echo(p["file_path"])
     elif output == "json":
         click.echo(json.dumps(photos, default=str, indent=2))
+    elif output == "csv":
+        print_csv(photos, _COLS)
     else:
-        print_photo_table(
-            photos,
-            columns=["id", "file_path", "taken_at", "blur_score", "exposure_score", "quality_score"],
-        )
+        print_photo_table(photos, columns=_COLS)
 
     if mark_deleted:
         for p in photos:
@@ -150,7 +150,7 @@ def quality(blur_threshold: float, worst: int, output: str,
 @click.option("--hamming-dist", default=8, show_default=True,
               help="pHash Hamming distance threshold (0–64).")
 @click.option("--output", default="table",
-              type=click.Choice(["table", "paths", "json"]), show_default=True)
+              type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
 @click.option("--mark-deleted", is_flag=True,
               help="Flag the lower-quality duplicate in each group as deleted.")
 @click.option("--library", default=None)
@@ -161,6 +161,7 @@ def duplicates(similarity: float, hamming_dist: int, output: str,
     from photoolz.db import mark_deleted as db_mark_deleted
     from photoolz.utils.console import print_duplicate_groups
 
+    _COLS = ["group", "id", "file_path", "taken_at", "quality_score"]
     conn, config = _get_conn_and_config(library)
     groups = find_near_duplicates(conn, config,
                                    similarity_threshold=similarity,
@@ -173,6 +174,9 @@ def duplicates(similarity: float, hamming_dist: int, output: str,
             click.echo("")
     elif output == "json":
         click.echo(json.dumps(groups, default=str, indent=2))
+    elif output == "csv":
+        flat = [{**p, "group": i} for i, group in enumerate(groups, 1) for p in group]
+        print_csv(flat, _COLS)
     else:
         print_duplicate_groups(groups)
 
@@ -204,8 +208,8 @@ def album():
 @click.option("--until", default=None, help="End date filter YYYY-MM-DD.")
 @click.option("--location", default=None, help="Filter by geo cluster label.")
 @click.option("--save", is_flag=True, help="Save album to the index database.")
-@click.option("--output", default="rich",
-              type=click.Choice(["rich", "json", "paths"]), show_default=True)
+@click.option("--output", default="table",
+              type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
 @click.option("--library", default=None)
 def album_propose(query: str, count: int, candidates: int, model: str,
                   since: str | None, until: str | None, location: str | None,
@@ -216,6 +220,7 @@ def album_propose(query: str, count: int, candidates: int, model: str,
     from photoolz.db import save_album, get_photos_by_ids
     from photoolz.utils.console import print_album, print_photo_table
 
+    _COLS = ["id", "file_path", "taken_at", "quality_score"]
     conn, config = _get_conn_and_config(library)
 
     console.print(f"[bold]Retrieving {candidates} candidates...[/bold]")
@@ -240,12 +245,11 @@ def album_propose(query: str, count: int, candidates: int, model: str,
             click.echo(p["file_path"])
     elif output == "json":
         click.echo(json.dumps({**result, "photos": photo_dicts}, default=str, indent=2))
+    elif output == "csv":
+        print_csv(photo_dicts, _COLS)
     else:
         print_album(result)
-        print_photo_table(
-            photo_dicts,
-            columns=["id", "file_path", "taken_at", "quality_score"],
-        )
+        print_photo_table(photo_dicts, columns=_COLS)
 
     if save:
         album_id = save_album(conn, result["title"], result["description"],
@@ -268,8 +272,11 @@ def album_list(limit: int, library: str | None):
 
     from rich.table import Table
     table = Table(title="Saved Albums", show_header=True, header_style="bold cyan")
-    for col in ["ID", "Title", "Photos", "Query", "Created"]:
-        table.add_column(col)
+    table.add_column("ID", min_width=4, no_wrap=True)
+    table.add_column("Title")
+    table.add_column("Photos", min_width=6, no_wrap=True)
+    table.add_column("Query", overflow="fold")
+    table.add_column("Created", min_width=10, no_wrap=True)
     for a in albums:
         table.add_row(
             str(a["id"]), a["title"] or "", str(a["photo_count"]),
@@ -281,13 +288,14 @@ def album_list(limit: int, library: str | None):
 @album.command("show")
 @click.argument("album_id", type=int)
 @click.option("--output", default="table",
-              type=click.Choice(["table", "paths", "json"]), show_default=True)
+              type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
 @click.option("--library", default=None)
 def album_show(album_id: int, output: str, library: str | None):
     """Show photos in a saved album."""
     from photoolz.db import get_album, get_album_photos
     from photoolz.utils.console import print_photo_table
 
+    _COLS = ["id", "file_path", "taken_at", "quality_score"]
     conn, _ = _get_conn_and_config(library)
     album_row = get_album(conn, album_id)
     if not album_row:
@@ -297,17 +305,20 @@ def album_show(album_id: int, output: str, library: str | None):
     photos = get_album_photos(conn, album_id)
     photo_dicts = [dict(p) for p in photos]
 
-    console.print(f"\n[bold]{album_row['title']}[/bold]")
-    if album_row["description"]:
-        console.print(f"[italic]{album_row['description']}[/italic]\n")
+    if output not in ("paths", "csv"):
+        console.print(f"\n[bold]{album_row['title']}[/bold]")
+        if album_row["description"]:
+            console.print(f"[italic]{album_row['description']}[/italic]\n")
 
     if output == "paths":
         for p in photo_dicts:
             click.echo(p["file_path"])
     elif output == "json":
         click.echo(json.dumps(photo_dicts, default=str, indent=2))
+    elif output == "csv":
+        print_csv(photo_dicts, _COLS)
     else:
-        print_photo_table(photo_dicts, columns=["id", "file_path", "taken_at", "quality_score"])
+        print_photo_table(photo_dicts, columns=_COLS)
 
 
 # ---------------------------------------------------------------------------
@@ -428,10 +439,10 @@ def people_list(library: str | None):
         return
 
     table = Table(title="People", show_header=True, header_style="bold cyan")
-    table.add_column("ID")
+    table.add_column("ID", min_width=4, no_wrap=True)
     table.add_column("Name")
-    table.add_column("Faces")
-    table.add_column("Representative Photo", no_wrap=True)
+    table.add_column("Faces", min_width=5, no_wrap=True)
+    table.add_column("Representative Photo", overflow="fold")
     for r in rows:
         table.add_row(
             str(r["id"]),
