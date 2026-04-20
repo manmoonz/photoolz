@@ -376,14 +376,29 @@ Most commands support `--output` with these choices:
 | `table` | Rich-formatted table in the terminal (default for most commands) |
 | `paths` | One absolute file path per line — pipe to `cp`, `open`, `feh`, etc. |
 | `json` | Full record as JSON — useful for scripting or further processing |
+| `csv` | Comma-separated with a header row — pipe to `awk`, `cut`, `sort`, etc. |
 
 ```bash
-# Example: copy search results to a folder
+# Copy search results to a folder
 photoolz search "fireworks" --output paths | xargs -I{} cp {} ~/Desktop/fireworks/
 
-# Example: open quality candidates in an image viewer
+# Open quality candidates in an image viewer
 photoolz quality --output paths | head -20 | xargs feh
+
+# Get file paths of the 20 worst photos sorted by quality score
+photoolz quality --worst 20 --output csv | tail -n +2 | sort -t, -k6 -n | cut -d, -f2
+
+# Show only the file paths from a search result
+photoolz search "beach" --output csv | tail -n +2 | cut -d, -f2
+
+# Show only duplicate group 1
+photoolz duplicates --output csv | awk -F, 'NR==1 || $1=="1"'
+
+# Interactive photo selection with fzf
+photoolz search "hiking" --output csv | fzf --header-lines=1 | cut -d, -f2
 ```
+
+The `duplicates` CSV adds a leading `group` column (integer, 1-based) so you can filter or group by duplicate set. All other commands use the same columns shown in `--output table`.
 
 ---
 
