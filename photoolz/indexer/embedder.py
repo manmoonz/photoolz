@@ -13,10 +13,30 @@ _clip_cache: dict[tuple[str, str, str], Any] = {}
 def _load_clip(model_name: str, pretrained: str, device: str):
     key = (model_name, pretrained, device)
     if key not in _clip_cache:
+        import os
         import open_clip
-        model, _, preprocess = open_clip.create_model_and_transforms(
-            model_name, pretrained=pretrained, device=device
-        )
+
+        prev = os.environ.get("HF_HUB_OFFLINE")
+        try:
+            os.environ["HF_HUB_OFFLINE"] = "1"
+            model, _, preprocess = open_clip.create_model_and_transforms(
+                model_name, pretrained=pretrained, device=device
+            )
+        except Exception:
+            # Model not in cache yet — go online for the initial download
+            if prev is None:
+                os.environ.pop("HF_HUB_OFFLINE", None)
+            else:
+                os.environ["HF_HUB_OFFLINE"] = prev
+            model, _, preprocess = open_clip.create_model_and_transforms(
+                model_name, pretrained=pretrained, device=device
+            )
+        else:
+            if prev is None:
+                os.environ.pop("HF_HUB_OFFLINE", None)
+            else:
+                os.environ["HF_HUB_OFFLINE"] = prev
+
         tokenizer = open_clip.get_tokenizer(model_name)
         model.eval()
         _clip_cache[key] = (model, preprocess, tokenizer)
