@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 import threading
 from pathlib import Path
@@ -499,6 +500,25 @@ def delete_photos_under_path(conn: sqlite3.Connection, root: str) -> int:
         )
         conn.commit()
     return cur.rowcount
+
+
+def prune_missing_photos(conn: sqlite3.Connection) -> int:
+    rows = conn.execute("SELECT id, file_path FROM photos WHERE is_deleted = 0").fetchall()
+    missing_ids = [r["id"] for r in rows if not os.path.exists(r["file_path"])]
+    if not missing_ids:
+        return 0
+    with _write_lock:
+        conn.execute(
+            f"UPDATE people SET representative_photo_id = NULL "
+            f"WHERE representative_photo_id IN ({','.join('?' * len(missing_ids))})",
+            missing_ids,
+        )
+        conn.execute(
+            f"DELETE FROM photos WHERE id IN ({','.join('?' * len(missing_ids))})",
+            missing_ids,
+        )
+        conn.commit()
+    return len(missing_ids)
 
 
 def fix_people_representatives(conn: sqlite3.Connection) -> None:

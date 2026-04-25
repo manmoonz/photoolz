@@ -660,3 +660,21 @@ def db_reindex(table: str, library: str | None):
 
     elif table == "faces":
         console.print("[yellow]Face re-detection requires re-running 'photoolz index'.[/yellow]")
+
+
+@db.command("prune")
+@click.option("--library", default=None)
+def db_prune(library: str | None):
+    """Remove indexed photos whose files no longer exist on disk."""
+    from photoolz.db import prune_missing_photos, fix_people_representatives
+    from photoolz.search.faiss_index import build_or_update_faiss_index
+
+    conn, config = _get_conn_and_config(library)
+    removed = prune_missing_photos(conn)
+    if removed == 0:
+        console.print("[green]No missing files found. Index is clean.[/green]")
+        return
+    fix_people_representatives(conn)
+    console.print(f"[bold]Rebuilding FAISS index...[/bold]")
+    build_or_update_faiss_index(conn, config)
+    console.print(f"[green]Removed {removed} missing photo(s). FAISS index rebuilt.[/green]")

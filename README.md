@@ -332,6 +332,9 @@ photoolz db reindex --table faiss
 
 # Re-score all photos for quality (blur + exposure)
 photoolz db reindex --table photos
+
+# Remove index entries for photos that have been deleted from disk
+photoolz db prune
 ```
 
 ---
