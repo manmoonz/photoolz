@@ -65,6 +65,7 @@ def index(library_path: Path, workers: int, force: bool,
 @click.option("--since", default=None, help="Start date filter YYYY-MM-DD.")
 @click.option("--until", default=None, help="End date filter YYYY-MM-DD.")
 @click.option("--person", default=None, help="Filter by person name.")
+@click.option("--person-id", "person_id", default=None, type=int, help="Filter by person ID.")
 @click.option("--location", default=None, help="Filter by geo cluster label.")
 @click.option("--output", default="table",
               type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
@@ -72,7 +73,7 @@ def index(library_path: Path, workers: int, force: bool,
 @click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
 @click.option("--library", default=None, help="Library path (if not already indexed from here).")
 def search(query: str, top_k: int, since: str | None, until: str | None,
-           person: str | None, location: str | None, output: str,
+           person: str | None, person_id: int | None, location: str | None, output: str,
            open_viewer: bool, viewer: str | None, library: str | None):
     """Search photos by content and/or date."""
     from photoolz.search.query import semantic_search
@@ -82,7 +83,8 @@ def search(query: str, top_k: int, since: str | None, until: str | None,
     conn, config = _get_conn_and_config(library)
     results = semantic_search(query, conn, config, top_k=top_k,
                                since=since, until=until,
-                               person_name=person, location_label=location)
+                               person_name=person, person_id=person_id,
+                               location_label=location)
 
     if not results:
         console.print("[yellow]No results found.[/yellow]")
@@ -366,12 +368,17 @@ def cluster():
 @click.option("--eps", default=0.5, show_default=True,
               help="DBSCAN epsilon for face encoding distance.")
 @click.option("--min-samples", default=3, show_default=True)
+@click.option("--reset", is_flag=True, help="Clear existing face clusters before re-clustering.")
 @click.option("--library", default=None)
-def cluster_faces(eps: float, min_samples: int, library: str | None):
+def cluster_faces(eps: float, min_samples: int, reset: bool, library: str | None):
     """Cluster faces into people groups."""
     from photoolz.clustering.faces_cluster import cluster_faces as _cluster_faces
 
     conn, _ = _get_conn_and_config(library)
+    if reset:
+        from photoolz.db import reset_face_clusters
+        reset_face_clusters(conn)
+        console.print("[dim]Cleared existing face clusters.[/dim]")
     _cluster_faces(conn, eps=eps, min_samples=min_samples)
 
 
@@ -488,6 +495,42 @@ def people_list(library: str | None):
             r["rep_path"] or "",
         )
     console.print(table)
+
+
+@people.command("photos")
+@click.argument("person_id", type=int)
+@click.option("--output", default="table",
+              type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
+@click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
+@click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
+@click.option("--library", default=None)
+def people_photos(person_id: int, output: str, open_viewer: bool,
+                  viewer: str | None, library: str | None):
+    """List photos containing a person by their ID."""
+    from photoolz.db import get_photos_by_person_id
+    from photoolz.utils.console import print_photo_table
+
+    _COLS = ["id", "file_path", "taken_at", "quality_score"]
+    conn, _ = _get_conn_and_config(library)
+    rows = get_photos_by_person_id(conn, person_id)
+    if not rows:
+        console.print(f"[yellow]No photos found for person ID {person_id}.[/yellow]")
+        return
+
+    results = [dict(r) for r in rows]
+    if output == "paths":
+        for r in results:
+            click.echo(r["file_path"])
+    elif output == "json":
+        click.echo(json.dumps(results, default=str, indent=2))
+    elif output == "csv":
+        print_csv(results, _COLS)
+    else:
+        print_photo_table(results, columns=_COLS)
+
+    if open_viewer:
+        from photoolz.utils.viewer import open_in_viewer
+        open_in_viewer([r["file_path"] for r in results], viewer)
 
 
 # ---------------------------------------------------------------------------

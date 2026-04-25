@@ -34,6 +34,8 @@ def open_in_viewer(paths: list[str], viewer: str | None = None) -> None:
     if resolved in ("xdg-open", "open"):
         for p in paths:
             subprocess.Popen([resolved, p])
+    elif resolved == "feh":
+        subprocess.Popen(["feh", "--scale-down"] + paths)
     else:
         subprocess.Popen([resolved] + paths)
 

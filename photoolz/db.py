@@ -282,6 +282,13 @@ def get_all_face_encodings(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute("SELECT id, photo_id, encoding FROM faces WHERE person_id IS NULL").fetchall()
 
 
+def reset_face_clusters(conn: sqlite3.Connection) -> None:
+    with _write_lock:
+        conn.execute("UPDATE faces SET person_id = NULL")
+        conn.execute("DELETE FROM people")
+        conn.commit()
+
+
 def upsert_person(conn: sqlite3.Connection, name: str | None, face_count: int,
                    rep_photo_id: int | None) -> int:
     from datetime import datetime, timezone
@@ -376,6 +383,16 @@ def get_photos_by_person(conn: sqlite3.Connection, person_name: str) -> list[int
         (person_name,),
     ).fetchall()
     return [r["photo_id"] for r in rows]
+
+
+def get_photos_by_person_id(conn: sqlite3.Connection, person_id: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT p.* FROM photos p "
+        "JOIN faces f ON f.photo_id = p.id "
+        "WHERE f.person_id = ? AND p.is_deleted = 0 "
+        "GROUP BY p.id ORDER BY p.taken_at",
+        (person_id,),
+    ).fetchall()
 
 
 def upsert_geo_cluster(conn: sqlite3.Connection, label: str | None,

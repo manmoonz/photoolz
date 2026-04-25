@@ -239,6 +239,10 @@ photoolz cluster faces
 
 # Tighter clustering (fewer, more confident groups)
 photoolz cluster faces --eps 0.4 --min-samples 5
+
+# Clear existing clusters and re-run from scratch
+photoolz cluster faces --reset
+photoolz cluster faces --reset --eps 0.4
 ```
 
 ### `photoolz cluster geo` — group photos by location

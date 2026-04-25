@@ -9,6 +9,7 @@ def apply_sql_filters(
     since: str | None = None,
     until: str | None = None,
     person_name: str | None = None,
+    person_id: int | None = None,
     location_label: str | None = None,
 ) -> list[int]:
     if not photo_ids:
@@ -32,6 +33,12 @@ def apply_sql_filters(
             "JOIN people pe ON pe.id = f.person_id WHERE pe.name = ?)"
         )
         params.append(person_name)
+
+    if person_id is not None:
+        conditions.append(
+            "p.id IN (SELECT DISTINCT f.photo_id FROM faces f WHERE f.person_id = ?)"
+        )
+        params.append(person_id)
 
     if location_label:
         conditions.append(

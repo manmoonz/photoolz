@@ -17,6 +17,7 @@ def semantic_search(
     since: str | None = None,
     until: str | None = None,
     person_name: str | None = None,
+    person_id: int | None = None,
     location_label: str | None = None,
 ) -> list[dict]:
     index, id_map = load_or_build_index(conn, config)
@@ -36,7 +37,7 @@ def semantic_search(
     candidate_ids = [pid for pid, _ in raw_results]
     score_map = {pid: score for pid, score in raw_results}
 
-    filtered_ids = apply_sql_filters(conn, candidate_ids, since, until, person_name, location_label)
+    filtered_ids = apply_sql_filters(conn, candidate_ids, since, until, person_name, person_id, location_label)
     filtered_ids = filtered_ids[:top_k]
 
     photos = get_photos_by_ids(conn, filtered_ids)
