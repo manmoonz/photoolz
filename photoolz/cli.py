@@ -9,11 +9,11 @@ import click
 from photoolz.utils.console import console, print_csv
 
 
-def _get_conn_and_config(library_path: str | None = None):
+def _get_conn_and_config():
     from photoolz.config import load_config
     from photoolz.db import get_connection, init_schema
 
-    config = load_config(library_path)
+    config = load_config()
     config.ensure_data_dir()
     conn = get_connection(config.db_path)
     init_schema(conn)
@@ -71,16 +71,15 @@ def index(library_path: Path, workers: int, force: bool,
               type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
 @click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
 @click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
-@click.option("--library", default=None, help="Library path (if not already indexed from here).")
 def search(query: str, top_k: int, since: str | None, until: str | None,
            person: str | None, person_id: int | None, location: str | None, output: str,
-           open_viewer: bool, viewer: str | None, library: str | None):
+           open_viewer: bool, viewer: str | None):
     """Search photos by content and/or date."""
     from photoolz.search.query import semantic_search
     from photoolz.utils.console import print_photo_table
 
     _COLS = ["id", "file_path", "taken_at", "similarity_score", "quality_score"]
-    conn, config = _get_conn_and_config(library)
+    conn, config = _get_conn_and_config()
     results = semantic_search(query, conn, config, top_k=top_k,
                                since=since, until=until,
                                person_name=person, person_id=person_id,
@@ -119,15 +118,14 @@ def search(query: str, top_k: int, since: str | None, until: str | None,
               help="Flag worst photos as deleted in the index (does NOT delete files).")
 @click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
 @click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
-@click.option("--library", default=None)
 def quality(blur_threshold: float, worst: int, output: str,
-            mark_deleted: bool, open_viewer: bool, viewer: str | None, library: str | None):
+            mark_deleted: bool, open_viewer: bool, viewer: str | None):
     """Find low-quality photos (blur, exposure)."""
     from photoolz.db import get_worst_quality_photos, mark_deleted as db_mark_deleted
     from photoolz.utils.console import print_photo_table
 
     _COLS = ["id", "file_path", "taken_at", "blur_score", "exposure_score", "quality_score"]
-    conn, config = _get_conn_and_config(library)
+    conn, config = _get_conn_and_config()
     rows = get_worst_quality_photos(conn, limit=worst)
     photos = [dict(r) for r in rows]
 
@@ -172,16 +170,15 @@ def quality(blur_threshold: float, worst: int, output: str,
               help="Flag the lower-quality duplicate in each group as deleted.")
 @click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
 @click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
-@click.option("--library", default=None)
 def duplicates(similarity: float, hamming_dist: int, output: str, min_group_size: int,
-               mark_deleted: bool, open_viewer: bool, viewer: str | None, library: str | None):
+               mark_deleted: bool, open_viewer: bool, viewer: str | None):
     """Find near-duplicate photos."""
     from photoolz.quality.duplicates import find_near_duplicates
     from photoolz.db import mark_deleted as db_mark_deleted
     from photoolz.utils.console import print_duplicate_groups
 
     _COLS = ["group", "id", "file_path", "taken_at", "quality_score"]
-    conn, config = _get_conn_and_config(library)
+    conn, config = _get_conn_and_config()
     groups = find_near_duplicates(conn, config,
                                    similarity_threshold=similarity,
                                    hamming_threshold=hamming_dist)
@@ -236,11 +233,9 @@ def album():
               type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
 @click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
 @click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
-@click.option("--library", default=None)
 def album_propose(query: str, count: int, candidates: int, model: str,
                   since: str | None, until: str | None, location: str | None,
-                  save: bool, output: str, open_viewer: bool, viewer: str | None,
-                  library: str | None):
+                  save: bool, output: str, open_viewer: bool, viewer: str | None):
     """Propose a photo album using Claude AI."""
     from photoolz.albums.candidates import retrieve_candidates
     from photoolz.albums.curator import propose_album
@@ -248,7 +243,7 @@ def album_propose(query: str, count: int, candidates: int, model: str,
     from photoolz.utils.console import print_album, print_photo_table
 
     _COLS = ["id", "file_path", "taken_at", "quality_score"]
-    conn, config = _get_conn_and_config(library)
+    conn, config = _get_conn_and_config()
 
     console.print(f"[bold]Retrieving {candidates} candidates...[/bold]")
     cands = retrieve_candidates(query, conn, config, n_candidates=candidates,
@@ -290,12 +285,11 @@ def album_propose(query: str, count: int, candidates: int, model: str,
 
 @album.command("list")
 @click.option("--limit", default=20, show_default=True)
-@click.option("--library", default=None)
-def album_list(limit: int, library: str | None):
+def album_list(limit: int):
     """List saved albums."""
     from photoolz.db import list_albums
 
-    conn, _ = _get_conn_and_config(library)
+    conn, _ = _get_conn_and_config()
     albums = list_albums(conn, limit)
     if not albums:
         console.print("[yellow]No albums saved yet.[/yellow]")
@@ -322,14 +316,13 @@ def album_list(limit: int, library: str | None):
               type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
 @click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
 @click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
-@click.option("--library", default=None)
-def album_show(album_id: int, output: str, open_viewer: bool, viewer: str | None, library: str | None):
+def album_show(album_id: int, output: str, open_viewer: bool, viewer: str | None):
     """Show photos in a saved album."""
     from photoolz.db import get_album, get_album_photos
     from photoolz.utils.console import print_photo_table
 
     _COLS = ["id", "file_path", "taken_at", "quality_score"]
-    conn, _ = _get_conn_and_config(library)
+    conn, _ = _get_conn_and_config()
     album_row = get_album(conn, album_id)
     if not album_row:
         console.print(f"[red]Album {album_id} not found.[/red]")
@@ -368,16 +361,15 @@ def cluster():
 
 
 @cluster.command("faces")
-@click.option("--eps", default=0.5, show_default=True,
+@click.option("--eps", default=0.3, show_default=True,
               help="DBSCAN epsilon for face encoding distance.")
 @click.option("--min-samples", default=3, show_default=True)
 @click.option("--reset", is_flag=True, help="Clear existing face clusters before re-clustering.")
-@click.option("--library", default=None)
-def cluster_faces(eps: float, min_samples: int, reset: bool, library: str | None):
+def cluster_faces(eps: float, min_samples: int, reset: bool):
     """Cluster faces into people groups."""
     from photoolz.clustering.faces_cluster import cluster_faces as _cluster_faces
 
-    conn, _ = _get_conn_and_config(library)
+    conn, _ = _get_conn_and_config()
     if reset:
         from photoolz.db import reset_face_clusters
         reset_face_clusters(conn)
@@ -389,12 +381,11 @@ def cluster_faces(eps: float, min_samples: int, reset: bool, library: str | None
 @click.option("--eps-km", default=1.0, show_default=True,
               help="DBSCAN epsilon in kilometres.")
 @click.option("--min-samples", default=5, show_default=True)
-@click.option("--library", default=None)
-def cluster_geo(eps_km: float, min_samples: int, library: str | None):
+def cluster_geo(eps_km: float, min_samples: int):
     """Cluster photos by GPS location."""
     from photoolz.clustering.geo_cluster import cluster_geolocations
 
-    conn, _ = _get_conn_and_config(library)
+    conn, _ = _get_conn_and_config()
     cluster_geolocations(conn, eps_km=eps_km, min_samples=min_samples)
 
 
@@ -403,13 +394,12 @@ def cluster_geo(eps_km: float, min_samples: int, library: str | None):
               help="Max seconds between burst frames.")
 @click.option("--open", "open_viewer", is_flag=True, help="Open best frames in an image viewer.")
 @click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
-@click.option("--library", default=None)
-def cluster_bursts(gap_seconds: int, open_viewer: bool, viewer: str | None, library: str | None):
+def cluster_bursts(gap_seconds: int, open_viewer: bool, viewer: str | None):
     """Detect burst photo sequences."""
     from photoolz.clustering.burst import detect_bursts, get_burst_best_frames
     from photoolz.utils.console import print_photo_table
 
-    conn, _ = _get_conn_and_config(library)
+    conn, _ = _get_conn_and_config()
     summary = detect_bursts(conn, gap_seconds=gap_seconds)
 
     if summary["burst_groups_found"] > 0:
@@ -436,20 +426,18 @@ def people():
 @people.command("label")
 @click.argument("person_id", type=int)
 @click.argument("name")
-@click.option("--library", default=None)
-def people_label(person_id: int, name: str, library: str | None):
+def people_label(person_id: int, name: str):
     """Assign a name to a face cluster."""
     from photoolz.db import label_person
 
-    conn, _ = _get_conn_and_config(library)
+    conn, _ = _get_conn_and_config()
     label_person(conn, person_id, name)
     console.print(f"[green]Person {person_id} labeled as '{name}'.[/green]")
 
 
 @people.command("merge")
 @click.argument("person_ids", nargs=-1, type=int, required=True)
-@click.option("--library", default=None)
-def people_merge(person_ids: tuple[int, ...], library: str | None):
+def people_merge(person_ids: tuple[int, ...]):
     """Merge multiple face clusters into one person.
 
     Example: photoolz people merge 2 7 12
@@ -460,7 +448,7 @@ def people_merge(person_ids: tuple[int, ...], library: str | None):
         console.print("[red]Provide at least two person IDs to merge.[/red]")
         raise SystemExit(1)
 
-    conn, _ = _get_conn_and_config(library)
+    conn, _ = _get_conn_and_config()
     try:
         survivor_id = merge_people(conn, list(person_ids))
     except ValueError as e:
@@ -473,13 +461,12 @@ def people_merge(person_ids: tuple[int, ...], library: str | None):
 
 
 @people.command("list")
-@click.option("--library", default=None)
-def people_list(library: str | None):
+def people_list():
     """List all identified people."""
     from photoolz.db import get_people
     from rich.table import Table
 
-    conn, _ = _get_conn_and_config(library)
+    conn, _ = _get_conn_and_config()
     rows = get_people(conn)
     if not rows:
         console.print("[yellow]No people clusters found. Run 'photoolz cluster faces' first.[/yellow]")
@@ -506,15 +493,13 @@ def people_list(library: str | None):
               type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
 @click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
 @click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
-@click.option("--library", default=None)
-def people_photos(person_id: int, output: str, open_viewer: bool,
-                  viewer: str | None, library: str | None):
+def people_photos(person_id: int, output: str, open_viewer: bool, viewer: str | None):
     """List photos containing a person by their ID."""
     from photoolz.db import get_photos_by_person_id
     from photoolz.utils.console import print_photo_table
 
     _COLS = ["id", "file_path", "taken_at", "quality_score"]
-    conn, _ = _get_conn_and_config(library)
+    conn, _ = _get_conn_and_config()
     rows = get_photos_by_person_id(conn, person_id)
     if not rows:
         console.print(f"[yellow]No photos found for person ID {person_id}.[/yellow]")
@@ -610,13 +595,12 @@ def unindex(path: Path, force: bool):
 # ---------------------------------------------------------------------------
 
 @cli.command()
-@click.option("--library", default=None)
-def stats(library: str | None):
+def stats():
     """Show library statistics."""
     from photoolz.db import get_stats
     from photoolz.utils.console import print_stats
 
-    conn, _ = _get_conn_and_config(library)
+    conn, _ = _get_conn_and_config()
     print_stats(get_stats(conn))
 
 
@@ -630,10 +614,9 @@ def db():
 
 
 @db.command("init")
-@click.option("--library", default=None)
-def db_init(library: str | None):
+def db_init():
     """Initialize or migrate the SQLite schema."""
-    conn, _ = _get_conn_and_config(library)
+    conn, _ = _get_conn_and_config()
     console.print("[green]Database schema initialized.[/green]")
 
 
@@ -641,10 +624,9 @@ def db_init(library: str | None):
 @click.option("--table", default="faiss",
               type=click.Choice(["photos", "faces", "faiss"]), show_default=True,
               help="Which component to rebuild.")
-@click.option("--library", default=None)
-def db_reindex(table: str, library: str | None):
+def db_reindex(table: str):
     """Rebuild a specific index component."""
-    conn, config = _get_conn_and_config(library)
+    conn, config = _get_conn_and_config()
 
     if table == "faiss":
         from photoolz.search.faiss_index import build_or_update_faiss_index
@@ -663,13 +645,12 @@ def db_reindex(table: str, library: str | None):
 
 
 @db.command("prune")
-@click.option("--library", default=None)
-def db_prune(library: str | None):
+def db_prune():
     """Remove indexed photos whose files no longer exist on disk."""
     from photoolz.db import prune_missing_photos, fix_people_representatives
     from photoolz.search.faiss_index import build_or_update_faiss_index
 
-    conn, config = _get_conn_and_config(library)
+    conn, config = _get_conn_and_config()
     removed = prune_missing_photos(conn)
     if removed == 0:
         console.print("[green]No missing files found. Index is clean.[/green]")
