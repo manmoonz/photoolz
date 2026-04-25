@@ -166,12 +166,14 @@ def quality(blur_threshold: float, worst: int, output: str,
               help="pHash Hamming distance threshold (0–64).")
 @click.option("--output", default="table",
               type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
+@click.option("--min-group-size", default=2, show_default=True,
+              help="Only show groups with at least this many duplicates.")
 @click.option("--mark-deleted", is_flag=True,
               help="Flag the lower-quality duplicate in each group as deleted.")
 @click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
 @click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
 @click.option("--library", default=None)
-def duplicates(similarity: float, hamming_dist: int, output: str,
+def duplicates(similarity: float, hamming_dist: int, output: str, min_group_size: int,
                mark_deleted: bool, open_viewer: bool, viewer: str | None, library: str | None):
     """Find near-duplicate photos."""
     from photoolz.quality.duplicates import find_near_duplicates
@@ -183,6 +185,7 @@ def duplicates(similarity: float, hamming_dist: int, output: str,
     groups = find_near_duplicates(conn, config,
                                    similarity_threshold=similarity,
                                    hamming_threshold=hamming_dist)
+    groups = [g for g in groups if len(g) >= min_group_size]
 
     if output == "paths":
         for group in groups:
