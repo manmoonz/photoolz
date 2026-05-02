@@ -25,6 +25,7 @@ def _load_clip(model_name: str, pretrained: str, device: str):
                 model, _, preprocess = open_clip.create_model_and_transforms(
                     model_name, pretrained=pretrained, device=device
                 )
+            tokenizer = open_clip.get_tokenizer(model_name)
         except Exception:
             # Model not in cache yet — go online for the initial download
             if prev is None:
@@ -36,13 +37,13 @@ def _load_clip(model_name: str, pretrained: str, device: str):
                 model, _, preprocess = open_clip.create_model_and_transforms(
                     model_name, pretrained=pretrained, device=device
                 )
-        else:
+            tokenizer = open_clip.get_tokenizer(model_name)
+        finally:
             if prev is None:
                 os.environ.pop("HF_HUB_OFFLINE", None)
             else:
                 os.environ["HF_HUB_OFFLINE"] = prev
 
-        tokenizer = open_clip.get_tokenizer(model_name)
         model.eval()
         _clip_cache[key] = (model, preprocess, tokenizer)
     return _clip_cache[key]

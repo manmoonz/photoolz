@@ -13,7 +13,7 @@ from photoolz.db import (
 from photoolz.utils.console import console
 
 
-def cluster_faces(conn: sqlite3.Connection, eps: float = 0.5,
+def cluster_faces(conn: sqlite3.Connection, eps: float = 0.3,
                   min_samples: int = 3) -> dict:
     from sklearn.cluster import DBSCAN
 

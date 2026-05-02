@@ -22,6 +22,41 @@ You can override the data directory with the `PHOTOOLZ_DATA_DIR` environment var
 
 ---
 
+## Typical workflow
+
+```bash
+# 1. First-time setup: index your library
+photoolz index ~/Pictures/
+
+# 2. Check what you have
+photoolz stats
+
+# 3. Find and review low-quality photos
+photoolz quality --worst 50
+
+# 4. Find near-duplicates, flag the worse copies
+photoolz duplicates --mark-deleted
+
+# 5. Cluster faces and name people
+photoolz cluster faces
+photoolz people list
+photoolz people label 1 "Alice"
+
+# 6. Cluster by GPS location
+photoolz cluster geo
+
+# 7. Search
+photoolz search "beach vacation" --since 2024-06-01 --until 2024-08-31
+photoolz search "photos with Alice at the beach" --person Alice
+
+# 8. Generate an album (requires ANTHROPIC_API_KEY)
+photoolz album propose "best beach photos summer 2024" --count 30 --save
+photoolz album list
+photoolz album show 1 --output paths
+```
+
+---
+
 ## Setup
 
 ### Prerequisites
@@ -335,41 +370,6 @@ photoolz db reindex --table photos
 
 # Remove index entries for photos that have been deleted from disk
 photoolz db prune
-```
-
----
-
-## Typical workflow
-
-```bash
-# 1. First-time setup: index your library
-photoolz index ~/Pictures/
-
-# 2. Check what you have
-photoolz stats
-
-# 3. Find and review low-quality photos
-photoolz quality --worst 50
-
-# 4. Find near-duplicates, flag the worse copies
-photoolz duplicates --mark-deleted
-
-# 5. Cluster faces and name people
-photoolz cluster faces
-photoolz people list
-photoolz people label 1 "Alice"
-
-# 6. Cluster by GPS location
-photoolz cluster geo
-
-# 7. Search
-photoolz search "beach vacation" --since 2024-06-01 --until 2024-08-31
-photoolz search "photos with Alice at the beach" --person Alice
-
-# 8. Generate an album (requires ANTHROPIC_API_KEY)
-photoolz album propose "best beach photos summer 2024" --count 30 --save
-photoolz album list
-photoolz album show 1 --output paths
 ```
 
 ---
