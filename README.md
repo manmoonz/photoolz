@@ -22,41 +22,6 @@ You can override the data directory with the `PHOTOOLZ_DATA_DIR` environment var
 
 ---
 
-## Typical workflow
-
-```bash
-# 1. First-time setup: index your library
-photoolz index ~/Pictures/
-
-# 2. Check what you have
-photoolz stats
-
-# 3. Find and review low-quality photos
-photoolz quality --worst 50
-
-# 4. Find near-duplicates, flag the worse copies
-photoolz duplicates --mark-deleted
-
-# 5. Cluster faces and name people
-photoolz cluster faces
-photoolz people list
-photoolz people label 1 "Alice"
-
-# 6. Cluster by GPS location
-photoolz cluster geo
-
-# 7. Search
-photoolz search "beach vacation" --since 2024-06-01 --until 2024-08-31
-photoolz search "photos with Alice at the beach" --person Alice
-
-# 8. Generate an album (requires ANTHROPIC_API_KEY)
-photoolz album propose "best beach photos summer 2024" --count 30 --save
-photoolz album list
-photoolz album show 1 --output paths
-```
-
----
-
 ## Setup
 
 ### Prerequisites
@@ -124,9 +89,46 @@ PHOTOOLZ_DEVICE=cpu                 # default: auto-detect (cuda if available)
 
 ---
 
+## Typical workflow
+
+```bash
+# 1. First-time setup: index your library
+photoolz index ~/Pictures/
+
+# 2. Check what you have
+photoolz stats
+
+# 3. Find and review low-quality photos
+photoolz quality --worst 50
+
+# 4. Find near-duplicates, flag the worse copies
+photoolz duplicates --mark-deleted
+
+# 5. Cluster faces and name people
+photoolz cluster faces
+photoolz people list
+photoolz people label 1 "Alice"
+
+# 6. Cluster by GPS location
+photoolz cluster geo
+
+# 7. Search
+photoolz search "beach vacation" --since 2024-06-01 --until 2024-08-31
+photoolz search "photos with Alice at the beach" --person Alice
+
+# 8. Generate an album (requires ANTHROPIC_API_KEY)
+photoolz album propose "best beach photos summer 2024" --count 30 --save
+photoolz album list
+photoolz album show 1 --output paths
+```
+
+---
+
 ## Commands
 
-### `photoolz index` — build the index
+### Indexing & index management
+
+#### `photoolz index` — build the index
 
 Scans a photo directory and computes metadata, CLIP embeddings, quality scores, and face encodings for every new or changed file. Run this first before using any other command.
 
@@ -149,7 +151,51 @@ photoolz index ~/Pictures/ --clip-batch-size 128
 
 ---
 
-### `photoolz search` — find photos by content and date
+#### `photoolz dirs` — list indexed directories
+
+```bash
+photoolz dirs
+```
+
+Shows all directories that have been indexed, along with the photo count and first/last indexed dates.
+
+---
+
+#### `photoolz unindex` — remove a directory from the index
+
+Deletes all photos under the given path from the index and rebuilds the FAISS index. Files on disk are not touched.
+
+```bash
+# Remove with confirmation prompt
+photoolz unindex ~/Pictures/OldTrip/
+
+# Skip confirmation
+photoolz unindex ~/Pictures/OldTrip/ --force
+```
+
+---
+
+#### `photoolz db` — database management
+
+```bash
+# Initialize or migrate the schema (safe to re-run)
+photoolz db init
+
+# Rebuild the FAISS vector index from the database (e.g. after manual DB edits)
+photoolz db reindex --table faiss
+
+# Re-score all photos for quality (blur + exposure)
+photoolz db reindex --table photos
+
+# Remove index entries for photos that have been deleted from disk
+photoolz db prune
+```
+
+---
+
+### Finding photos
+
+#### `photoolz search` — find photos by content and date
 
 Uses CLIP to embed your query as a vector and finds the most semantically similar photos. Combine with date and person filters for precise results.
 
@@ -178,7 +224,7 @@ photoolz search "sunset" --output json
 
 ---
 
-### `photoolz quality` — find low-quality photos
+#### `photoolz quality` — find low-quality photos
 
 Scores photos by sharpness (Laplacian variance) and exposure (histogram analysis) and surfaces the worst ones. Scores are on a 0–1 scale where 1 is best.
 
@@ -201,7 +247,7 @@ photoolz quality --worst 20 --mark-deleted
 
 ---
 
-### `photoolz duplicates` — find near-duplicate photos
+#### `photoolz duplicates` — find near-duplicate photos
 
 Uses two methods in combination: perceptual hashing (pHash) for visually identical images and CLIP cosine similarity for semantically near-identical ones. Results are grouped with the highest-quality photo listed first in each group.
 
@@ -224,47 +270,9 @@ photoolz duplicates --output json
 
 ---
 
-### `photoolz album propose` — AI-curated album  *(requires Anthropic API key)*
+### Clustering & people
 
-Uses CLIP to retrieve the most relevant candidate photos for your query, then sends them to Claude to select a final set that is temporally coherent, visually diverse, and high quality.
-
-```bash
-# Propose a 40-photo album (default)
-photoolz album propose "our trip to Curacao in December 2025"
-
-# Specify the target count
-photoolz album propose "summer vacation 2024" --count 25
-
-# Narrow candidates to a date range before sending to Claude
-photoolz album propose "Christmas morning" --since 2024-12-25 --until 2024-12-25 --count 20
-
-# Save the album to the database for later retrieval
-photoolz album propose "beach photos" --save
-
-# Output just the selected file paths
-photoolz album propose "hiking trip" --output paths
-
-# Use a specific Claude model
-photoolz album propose "family reunion" --model claude-opus-4-5
-```
-
-### `photoolz album list` — list saved albums
-
-```bash
-photoolz album list
-photoolz album list --limit 50
-```
-
-### `photoolz album show` — show photos in a saved album
-
-```bash
-photoolz album show 3
-photoolz album show 3 --output paths
-```
-
----
-
-### `photoolz cluster faces` — group photos by person
+#### `photoolz cluster faces` — group photos by person
 
 Runs DBSCAN clustering on the 128-dimensional face encodings stored during indexing. Creates unlabeled people clusters that you can then name with `photoolz people label`.
 
@@ -280,7 +288,9 @@ photoolz cluster faces --reset
 photoolz cluster faces --reset --eps 0.4
 ```
 
-### `photoolz cluster geo` — group photos by location
+---
+
+#### `photoolz cluster geo` — group photos by location
 
 Clusters photos by GPS coordinates using haversine distance. Photos without GPS data in their EXIF are skipped.
 
@@ -292,7 +302,9 @@ photoolz cluster geo
 photoolz cluster geo --eps-km 5.0
 ```
 
-### `photoolz cluster bursts` — detect burst sequences
+---
+
+#### `photoolz cluster bursts` — detect burst sequences
 
 Groups photos taken within a short time window (default: 3 seconds) and identifies the sharpest frame in each burst.
 
@@ -305,7 +317,7 @@ photoolz cluster bursts --gap-seconds 5
 
 ---
 
-### `photoolz people` — manage named people
+#### `photoolz people` — manage named people
 
 After running `photoolz cluster faces`, assign names to the clusters so they can be used in `photoolz search --person`.
 
@@ -335,7 +347,55 @@ The largest cluster survives the merge. If any of the clusters already have a na
 
 ---
 
-### `photoolz stats` — library overview
+### Albums
+
+#### `photoolz album propose` — AI-curated album  *(requires Anthropic API key)*
+
+Uses CLIP to retrieve the most relevant candidate photos for your query, then sends them to Claude to select a final set that is temporally coherent, visually diverse, and high quality.
+
+```bash
+# Propose a 40-photo album (default)
+photoolz album propose "our trip to Curacao in December 2025"
+
+# Specify the target count
+photoolz album propose "summer vacation 2024" --count 25
+
+# Narrow candidates to a date range before sending to Claude
+photoolz album propose "Christmas morning" --since 2024-12-25 --until 2024-12-25 --count 20
+
+# Save the album to the database for later retrieval
+photoolz album propose "beach photos" --save
+
+# Output just the selected file paths
+photoolz album propose "hiking trip" --output paths
+
+# Use a specific Claude model
+photoolz album propose "family reunion" --model claude-opus-4-5
+```
+
+---
+
+#### `photoolz album list` — list saved albums
+
+```bash
+photoolz album list
+photoolz album list --limit 50
+```
+
+---
+
+#### `photoolz album show` — show photos in a saved album
+
+```bash
+photoolz album show 3
+photoolz album show 3 --output paths
+```
+
+---
+
+### Utilities
+
+#### `photoolz stats` — library overview
 
 ```bash
 photoolz stats
@@ -353,79 +413,6 @@ Example output:
  Faces                 8,403
  Geo Clusters             17
 ```
-
----
-
-### `photoolz db` — database management
-
-```bash
-# Initialize or migrate the schema (safe to re-run)
-photoolz db init
-
-# Rebuild the FAISS vector index from the database (e.g. after manual DB edits)
-photoolz db reindex --table faiss
-
-# Re-score all photos for quality (blur + exposure)
-photoolz db reindex --table photos
-
-# Remove index entries for photos that have been deleted from disk
-photoolz db prune
-```
-
----
-
-### `photoolz dirs` — list indexed directories
-
-```bash
-photoolz dirs
-```
-
-Shows all directories that have been indexed, along with the photo count and first/last indexed dates.
-
----
-
-### `photoolz unindex` — remove a directory from the index
-
-Deletes all photos under the given path from the index and rebuilds the FAISS index. Files on disk are not touched.
-
-```bash
-# Remove with confirmation prompt
-photoolz unindex ~/Pictures/OldTrip/
-
-# Skip confirmation
-photoolz unindex ~/Pictures/OldTrip/ --force
-```
-
----
-
-## Opening results in an image viewer
-
-Any command that outputs a photo list supports `--open` to launch the results directly in an image viewer:
-
-```bash
-# Open quality candidates in feh
-photoolz quality --open
-
-# Open search results in a specific viewer
-photoolz search "beach sunset" --open --viewer feh
-
-# Open duplicate groups for visual comparison
-photoolz duplicates --open
-
-# Open an album
-photoolz album show 3 --open
-
-# Open burst best frames
-photoolz cluster bursts --open
-```
-
-Viewer auto-detection tries: `feh`, `eog`, `xviewer`, `shotwell`, `gthumb`, `xdg-open` (Linux), `open` (macOS). You can also set a default in `.env`:
-
-```ini
-PHOTOOLZ_VIEWER=feh
-```
-
-`feh` is recommended on Linux — install it with `sudo apt-get install feh`. The `--open` flag fires after terminal output, so `--output table --open` gives you the table and the viewer simultaneously.
 
 ---
 
@@ -464,12 +451,31 @@ The `duplicates` CSV adds a leading `group` column (integer, 1-based) so you can
 
 ---
 
-## Commands requiring Anthropic API access
+## Opening results in an image viewer
 
-Only one command calls the Anthropic API:
+Any command that outputs a photo list supports `--open` to launch the results directly in an image viewer:
 
-| Command | Why |
-|---|---|
-| `photoolz album propose` | Claude selects the final photo set from CLIP candidates, applying quality, diversity, and narrative judgement |
+```bash
+# Open quality candidates in feh
+photoolz quality --open
 
-All other commands run entirely locally with no external API calls.
+# Open search results in a specific viewer
+photoolz search "beach sunset" --open --viewer feh
+
+# Open duplicate groups for visual comparison
+photoolz duplicates --open
+
+# Open an album
+photoolz album show 3 --open
+
+# Open burst best frames
+photoolz cluster bursts --open
+```
+
+Viewer auto-detection tries: `feh`, `eog`, `xviewer`, `shotwell`, `gthumb`, `xdg-open` (Linux), `open` (macOS). You can also set a default in `.env`:
+
+```ini
+PHOTOOLZ_VIEWER=feh
+```
+
+`feh` is recommended on Linux — install it with `sudo apt-get install feh`. The `--open` flag fires after terminal output, so `--output table --open` gives you the table and the viewer simultaneously.
