@@ -66,6 +66,6 @@ crashing.
 
 ## 5. Workflow gaps (features)
 
-- [ ] **5.1 Acting on flagged photos.** Add `photoolz flagged list` / `flagged restore <id...>` / `flagged move <dest>` (move the files to a trash folder, then drop them from the index). Never delete files outright.
+- [x] **5.1 Acting on flagged photos.** Add `photoolz flagged list` / `flagged restore <id...>` / `flagged move <dest>` (move the files to a trash folder, then drop them from the index). Never delete files outright.
 - [ ] **5.2 Schema migrations.** Add a `schema_version` table (or `PRAGMA user_version`) and ordered migrations in `db.init_schema`, before any change that adds a column. The first migration can drop the unused `people.face_count` column (counts are now derived from `faces`).
 - [x] **5.3 Test coverage.** Add tests for search filters (`search/filters.py`), burst detection, geo clustering and duplicate grouping.

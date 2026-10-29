@@ -212,6 +212,132 @@ def duplicates(similarity: float, hamming_dist: int, output: str, min_group_size
 
 
 # ---------------------------------------------------------------------------
+# flagged
+# ---------------------------------------------------------------------------
+
+_REASONS = click.Choice(["quality", "duplicate"])
+
+
+@cli.group()
+def flagged():
+    """Photos flagged by --mark-deleted: review, restore, or move them out."""
+
+
+@flagged.command("list")
+@click.option("--reason", type=_REASONS, default=None, help="Only photos flagged for this reason.")
+@click.option("--output", default="table",
+              type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
+@click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
+@click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
+def flagged_list(reason: str | None, output: str, open_viewer: bool, viewer: str | None):
+    """List photos flagged as deleted."""
+    from photoolz.db import get_flagged_photos
+    from photoolz.utils.console import print_photo_table
+
+    _COLS = ["id", "file_path", "deletion_reason", "taken_at", "quality_score"]
+    conn, _ = _get_conn_and_config()
+    photos = [dict(r) for r in get_flagged_photos(conn, reason)]
+    if not photos:
+        err_console.print("[green]No flagged photos.[/green]")
+        return
+
+    if output == "paths":
+        for p in photos:
+            click.echo(p["file_path"])
+    elif output == "json":
+        click.echo(json.dumps(photos, default=str, indent=2))
+    elif output == "csv":
+        print_csv(photos, _COLS)
+    else:
+        print_photo_table(photos, columns=_COLS)
+
+    if open_viewer:
+        from photoolz.utils.viewer import open_in_viewer
+        open_in_viewer([p["file_path"] for p in photos], viewer)
+
+
+@flagged.command("restore")
+@click.argument("photo_ids", nargs=-1, type=int)
+@click.option("--all", "restore_all", is_flag=True, help="Restore every flagged photo.")
+@click.option("--reason", type=_REASONS, default=None, help="With --all: only this reason.")
+def flagged_restore(photo_ids: tuple[int, ...], restore_all: bool, reason: str | None):
+    """Un-flag photos so they show up in search and other commands again."""
+    from photoolz.db import get_flagged_photos, restore_flagged
+
+    if bool(photo_ids) == restore_all:
+        console.print("[red]Give photo IDs or --all (not both).[/red]")
+        raise SystemExit(1)
+
+    conn, _ = _get_conn_and_config()
+    ids = list(photo_ids) or [r["id"] for r in get_flagged_photos(conn, reason)]
+    restored = restore_flagged(conn, ids)
+    console.print(f"[green]Restored {restored} photo(s).[/green]")
+    if photo_ids and restored < len(set(photo_ids)):
+        console.print(f"[yellow]{len(set(photo_ids)) - restored} ID(s) weren't flagged.[/yellow]")
+
+
+@flagged.command("move")
+@click.argument("dest", type=click.Path(file_okay=False, path_type=Path))
+@click.option("--reason", type=_REASONS, default=None, help="Only photos flagged for this reason.")
+@click.option("--force", is_flag=True, help="Skip confirmation prompt.")
+def flagged_move(dest: Path, reason: str | None, force: bool):
+    """Move flagged photos' files into DEST and remove them from the index.
+
+    Each file keeps its full original path under DEST (e.g.
+    DEST/home/me/Pictures/IMG_1.jpg), so nothing collides and it's clear where
+    files came from. Files are moved, never deleted.
+    """
+    import shutil
+    from photoolz.db import delete_photos_by_ids, get_flagged_photos, list_indexed_dirs
+    from photoolz.search.faiss_index import build_or_update_faiss_index
+
+    dest_root = dest.resolve()
+    conn, config = _get_conn_and_config()
+    for d in list_indexed_dirs(conn):
+        indexed = Path(d["path"])
+        if dest_root == indexed or indexed in dest_root.parents:
+            console.print(f"[red]{dest_root} is inside indexed directory {indexed}; "
+                          f"re-indexing would pick the files up again. Choose another DEST.[/red]")
+            raise SystemExit(1)
+
+    photos = get_flagged_photos(conn, reason)
+    if not photos:
+        console.print("[green]No flagged photos.[/green]")
+        return
+    if not force:
+        click.confirm(f"Move {len(photos)} flagged photo(s) into {dest_root} "
+                      f"and remove them from the index?", abort=True)
+
+    moved: list[int] = []
+    skipped: list[str] = []
+    for p in photos:
+        src = Path(p["file_path"])
+        target = dest_root / src.relative_to(src.anchor)
+        if not src.exists():
+            skipped.append(f"{src} (missing)")
+        elif target.exists():
+            skipped.append(f"{src} (already exists at {target})")
+        else:
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(src), str(target))
+                moved.append(p["id"])
+            except OSError as e:
+                skipped.append(f"{src} ({e})")
+
+    delete_photos_by_ids(conn, moved)
+    if moved:
+        build_or_update_faiss_index(conn, config)
+    console.print(f"[green]Moved {len(moved)} photo(s) to {dest_root}.[/green]")
+    if skipped:
+        console.print(f"[yellow]Skipped {len(skipped)}; they stay flagged in the index:[/yellow]")
+        for line in skipped[:20]:
+            console.print(f"  {line}")
+        if len(skipped) > 20:
+            console.print(f"  ... and {len(skipped) - 20} more")
+
+
+# ---------------------------------------------------------------------------
 # album
 # ---------------------------------------------------------------------------
 

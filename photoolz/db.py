@@ -185,6 +185,30 @@ def mark_deleted(conn: sqlite3.Connection, photo_id: int, reason: str) -> None:
         conn.commit()
 
 
+def get_flagged_photos(conn: sqlite3.Connection, reason: str | None = None) -> list[sqlite3.Row]:
+    if reason:
+        return conn.execute(
+            "SELECT * FROM photos WHERE is_deleted=1 AND deletion_reason=? ORDER BY file_path",
+            (reason,),
+        ).fetchall()
+    return conn.execute("SELECT * FROM photos WHERE is_deleted=1 ORDER BY file_path").fetchall()
+
+
+def restore_flagged(conn: sqlite3.Connection, photo_ids: list[int]) -> int:
+    """Un-flag photos. Returns how many were flagged and are now restored."""
+    if not photo_ids:
+        return 0
+    placeholders = ",".join("?" * len(photo_ids))
+    with _write_lock:
+        cur = conn.execute(
+            f"UPDATE photos SET is_deleted=0, deletion_reason=NULL "
+            f"WHERE is_deleted=1 AND id IN ({placeholders})",
+            photo_ids,
+        )
+        conn.commit()
+    return cur.rowcount
+
+
 def get_photos_missing_quality(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
         "SELECT id, file_path FROM photos WHERE quality_score IS NULL AND is_deleted=0"
@@ -528,22 +552,26 @@ def delete_photos_under_path(conn: sqlite3.Connection, root: str) -> int:
     return cur.rowcount
 
 
+def delete_photos_by_ids(conn: sqlite3.Connection, photo_ids: list[int]) -> None:
+    """Remove photos from the index (faces and album entries cascade). Files are untouched."""
+    if not photo_ids:
+        return
+    placeholders = ",".join("?" * len(photo_ids))
+    with _write_lock:
+        # Clear representative_photo_id first: people.representative_photo_id is a bare FK
+        conn.execute(
+            f"UPDATE people SET representative_photo_id = NULL "
+            f"WHERE representative_photo_id IN ({placeholders})",
+            photo_ids,
+        )
+        conn.execute(f"DELETE FROM photos WHERE id IN ({placeholders})", photo_ids)
+        conn.commit()
+
+
 def prune_missing_photos(conn: sqlite3.Connection) -> int:
     rows = conn.execute("SELECT id, file_path FROM photos WHERE is_deleted = 0").fetchall()
     missing_ids = [r["id"] for r in rows if not os.path.exists(r["file_path"])]
-    if not missing_ids:
-        return 0
-    with _write_lock:
-        conn.execute(
-            f"UPDATE people SET representative_photo_id = NULL "
-            f"WHERE representative_photo_id IN ({','.join('?' * len(missing_ids))})",
-            missing_ids,
-        )
-        conn.execute(
-            f"DELETE FROM photos WHERE id IN ({','.join('?' * len(missing_ids))})",
-            missing_ids,
-        )
-        conn.commit()
+    delete_photos_by_ids(conn, missing_ids)
     return len(missing_ids)
 
 

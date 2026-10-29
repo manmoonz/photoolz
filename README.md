@@ -100,8 +100,10 @@ photoolz stats
 # 3. Find and review low-quality photos
 photoolz quality --worst 50
 
-# 4. Find near-duplicates, flag the worse copies
+# 4. Find near-duplicates, flag the worse copies, then review and move them out
 photoolz duplicates --mark-deleted
+photoolz flagged list
+photoolz flagged move ~/photo-trash
 
 # 5. Cluster faces and name people
 photoolz cluster faces
@@ -283,6 +285,27 @@ photoolz duplicates --mark-deleted
 # Output as JSON for scripted processing
 photoolz duplicates --output json
 ```
+
+---
+
+#### `photoolz flagged` — review, restore, or move flagged photos
+
+`--mark-deleted` on `quality` and `duplicates` only flags photos in the index; the files stay where they are. Use `flagged` to act on them.
+
+```bash
+# See what's flagged (optionally only one reason)
+photoolz flagged list
+photoolz flagged list --reason duplicate --open
+
+# Changed your mind: un-flag specific photos, or all of them
+photoolz flagged restore 412 977
+photoolz flagged restore --all --reason quality
+
+# Move the files out of your library and drop them from the index
+photoolz flagged move ~/photo-trash
+```
+
+`flagged move` never deletes files. Each one keeps its full original path under the destination (for example `~/photo-trash/home/me/Pictures/IMG_1.jpg`), so files with the same name don't collide and you can see where they came from. Review the destination and delete it yourself when you're sure. Files that can't be moved stay flagged in the index. The destination can't be inside an indexed directory, because re-indexing would pick the files up again.
 
 ---
 
