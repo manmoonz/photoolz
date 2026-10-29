@@ -5,7 +5,7 @@ from pathlib import Path
 
 import click
 
-from photoolz.utils.console import console, print_csv
+from photoolz.utils.console import console, err_console, print_csv
 
 
 def _get_conn_and_config():
@@ -85,7 +85,7 @@ def search(query: str, top_k: int, since: str | None, until: str | None,
                                location_label=location)
 
     if not results:
-        console.print("[yellow]No results found.[/yellow]")
+        err_console.print("[yellow]No results found.[/yellow]")
         return
 
     if output == "paths":
@@ -131,7 +131,7 @@ def quality(worst: int, output: str,
     photos = [dict(r) for r in rows]
 
     if not photos:
-        console.print("[green]No quality issues found.[/green]")
+        err_console.print("[green]No quality issues found.[/green]")
         return
 
     if output == "paths":
@@ -151,7 +151,7 @@ def quality(worst: int, output: str,
     if mark_deleted:
         for p in photos:
             db_mark_deleted(conn, p["id"], "quality")
-        console.print(f"[yellow]Flagged {len(photos)} photos as deleted (quality).[/yellow]")
+        err_console.print(f"[yellow]Flagged {len(photos)} photos as deleted (quality).[/yellow]")
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +208,7 @@ def duplicates(similarity: float, hamming_dist: int, output: str, min_group_size
             for p in group[1:]:  # keep the best (first), flag the rest
                 db_mark_deleted(conn, p["id"], "duplicate")
                 flagged += 1
-        console.print(f"[yellow]Flagged {flagged} duplicates as deleted.[/yellow]")
+        err_console.print(f"[yellow]Flagged {flagged} duplicates as deleted.[/yellow]")
 
 
 # ---------------------------------------------------------------------------
@@ -242,7 +242,7 @@ def album_propose(query: str, count: int, candidates: int, model: str | None,
     from photoolz.albums.candidates import retrieve_candidates
     from photoolz.albums.curator import propose_album
     from photoolz.db import save_album, get_photos_by_ids
-    from photoolz.utils.console import err_console, print_album, print_photo_table
+    from photoolz.utils.console import print_album, print_photo_table
 
     _COLS = ["id", "file_path", "taken_at", "quality_score"]
     conn, config = _get_conn_and_config()
@@ -334,13 +334,13 @@ def album_show(album_id: int, output: str, open_viewer: bool, viewer: str | None
     conn, _ = _get_conn_and_config()
     album_row = get_album(conn, album_id)
     if not album_row:
-        console.print(f"[red]Album {album_id} not found.[/red]")
+        err_console.print(f"[red]Album {album_id} not found.[/red]")
         return
 
     photos = get_album_photos(conn, album_id)
     photo_dicts = [dict(p) for p in photos]
 
-    if output not in ("paths", "csv"):
+    if output == "table":
         console.print(f"\n[bold]{album_row['title']}[/bold]")
         if album_row["description"]:
             console.print(f"[italic]{album_row['description']}[/italic]\n")
@@ -511,7 +511,7 @@ def people_photos(person_id: int, output: str, open_viewer: bool, viewer: str | 
     conn, _ = _get_conn_and_config()
     rows = get_photos_by_person_id(conn, person_id)
     if not rows:
-        console.print(f"[yellow]No photos found for person ID {person_id}.[/yellow]")
+        err_console.print(f"[yellow]No photos found for person ID {person_id}.[/yellow]")
         return
 
     results = [dict(r) for r in rows]

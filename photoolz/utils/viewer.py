@@ -19,14 +19,14 @@ def detect_viewer() -> str | None:
 
 
 def open_in_viewer(paths: list[str], viewer: str | None = None) -> None:
-    from photoolz.utils.console import console
+    from photoolz.utils.console import err_console
 
     if not paths:
         return
 
     resolved = viewer or os.environ.get("PHOTOOLZ_VIEWER") or detect_viewer()
     if not resolved:
-        console.print(
+        err_console.print(
             "[red]No image viewer found. Install feh or set PHOTOOLZ_VIEWER in .env.[/red]"
         )
         return
@@ -39,4 +39,4 @@ def open_in_viewer(paths: list[str], viewer: str | None = None) -> None:
     else:
         subprocess.Popen([resolved] + paths)
 
-    console.print(f"[dim]Opened {len(paths)} photo(s) in {resolved}.[/dim]")
+    err_console.print(f"[dim]Opened {len(paths)} photo(s) in {resolved}.[/dim]")
