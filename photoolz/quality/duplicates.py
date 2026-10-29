@@ -12,34 +12,42 @@ from photoolz.utils.hash import hamming_distance
 from photoolz.utils.console import console
 
 
-def _phash_groups(rows: list, hamming_threshold: int) -> list[list[int]]:
-    """Group photo IDs by pHash Hamming distance."""
+def _phash_pairs(rows: list, hamming_threshold: int) -> list[list[int]]:
+    """Pairs of photo IDs within the pHash Hamming threshold."""
     # Only compare photos taken on the same day to keep complexity manageable
     by_day: dict[str, list] = defaultdict(list)
     for row in rows:
-        day = (row["taken_at"] or "")[:10]
-        by_day[day].append(row)
+        if row["phash"]:
+            by_day[(row["taken_at"] or "")[:10]].append(row)
 
-    visited = set()
-    groups = []
+    pairs = []
     for day_rows in by_day.values():
         for i, a in enumerate(day_rows):
-            if a["id"] in visited:
-                continue
-            if not a["phash"]:
-                continue
-            group = [a["id"]]
             for b in day_rows[i + 1:]:
-                if b["id"] in visited or not b["phash"]:
-                    continue
                 if hamming_distance(a["phash"], b["phash"]) <= hamming_threshold:
-                    group.append(b["id"])
-                    visited.add(b["id"])
-            if len(group) > 1:
-                visited.add(a["id"])
-                groups.append(group)
+                    pairs.append([a["id"], b["id"]])
+    return pairs
 
-    return groups
+
+def _merge_groups(groups: list[list[int]]) -> list[list[int]]:
+    """Union overlapping groups, so A~B and B~C end up in one group even if A and C differ."""
+    parent: dict[int, int] = {}
+
+    def find(x: int) -> int:
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for group in groups:
+        for other in group[1:]:
+            parent[find(other)] = find(group[0])
+
+    merged: dict[int, list[int]] = defaultdict(list)
+    for x in parent:
+        merged[find(x)].append(x)
+    return [g for g in merged.values() if len(g) > 1]
 
 
 def find_near_duplicates(
@@ -48,51 +56,24 @@ def find_near_duplicates(
     similarity_threshold: float = 0.97,
     hamming_threshold: int = 8,
 ) -> list[list[dict]]:
-    all_phash_rows = get_all_phashes(conn)
-
     # Pass 1: pHash Hamming
-    phash_group_ids = _phash_groups(all_phash_rows, hamming_threshold)
+    groups = _phash_pairs(get_all_phashes(conn), hamming_threshold)
 
     # Pass 2: FAISS cosine similarity
     index, id_map = load_or_build_index(conn, config)
-    faiss_group_ids: list[list[int]] = []
-
     if index is not None:
         from photoolz.db import get_all_embeddings
+        # Only photos not flagged as deleted; the FAISS index may still contain flagged ones
         emb_rows = {r["id"]: r["clip_embedding"] for r in get_all_embeddings(conn)}
-
-        visited = set()
-        all_ids = list(emb_rows.keys())
-        for photo_id in all_ids:
-            if photo_id in visited:
-                continue
-            blob = emb_rows.get(photo_id)
-            if blob is None:
-                continue
-            vec = deserialize_embedding(blob)
-            candidates = query_index(index, id_map, vec, top_k=20)
-            group = [photo_id]
-            for cid, score in candidates:
-                if cid == photo_id or cid in visited:
-                    continue
-                if score >= similarity_threshold:
-                    group.append(cid)
-                    visited.add(cid)
+        for photo_id, blob in emb_rows.items():
+            candidates = query_index(index, id_map, deserialize_embedding(blob), top_k=20)
+            group = [photo_id] + [cid for cid, score in candidates
+                                  if cid != photo_id and cid in emb_rows
+                                  and score >= similarity_threshold]
             if len(group) > 1:
-                visited.add(photo_id)
-                faiss_group_ids.append(group)
+                groups.append(group)
 
-    # Merge groups
-    all_groups: list[list[int]] = phash_group_ids + faiss_group_ids
-
-    # Deduplicate groups (a photo may appear in both passes)
-    seen_pairs: set[frozenset] = set()
-    unique_groups: list[list[int]] = []
-    for group in all_groups:
-        key = frozenset(group)
-        if key not in seen_pairs:
-            seen_pairs.add(key)
-            unique_groups.append(group)
+    unique_groups = _merge_groups(groups)
 
     # Fetch full photo records and sort each group by quality (best first)
     result_groups = []
