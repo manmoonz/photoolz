@@ -3,12 +3,35 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import click
 import faiss
 import numpy as np
 
 from photoolz.config import Config
 from photoolz.db import get_all_embeddings
 from photoolz.indexer.embedder import deserialize_embedding
+
+
+class ClipModelMismatchError(click.ClickException):
+    """Stored embeddings come from a different CLIP model than the configured one."""
+
+
+def check_clip_model(conn: sqlite3.Connection, config: Config) -> None:
+    """Raise if any stored embedding was made with a model other than config.clip_model.
+
+    Embeddings from different models aren't comparable, so mixing them gives meaningless
+    search results (or fails outright when the embedding sizes differ).
+    """
+    models = {r[0] for r in conn.execute(
+        "SELECT DISTINCT clip_model FROM photos WHERE clip_embedding IS NOT NULL AND is_deleted=0"
+    )}
+    stale = sorted(m for m in models if m and m != config.clip_model)
+    if stale:
+        raise ClipModelMismatchError(
+            f"The index has CLIP embeddings from {', '.join(stale)}, but PHOTOOLZ_CLIP_MODEL is "
+            f"{config.clip_model}. Re-index every directory listed by 'photoolz dirs' with "
+            f"'photoolz index <path> --force', or set PHOTOOLZ_CLIP_MODEL back."
+        )
 
 
 def build_index(embeddings: np.ndarray, photo_ids: list[int]) -> tuple[faiss.Index, np.ndarray]:
@@ -31,6 +54,7 @@ def load_index(index_path: Path, id_map_path: Path) -> tuple[faiss.Index, np.nda
 
 
 def build_or_update_faiss_index(conn: sqlite3.Connection, config: Config) -> None:
+    check_clip_model(conn, config)
     rows = get_all_embeddings(conn)
     if not rows:
         return
@@ -67,6 +91,7 @@ def query_index(index: faiss.Index, id_map: np.ndarray,
 
 def load_or_build_index(conn: sqlite3.Connection,
                          config: Config) -> tuple[faiss.Index, np.ndarray] | tuple[None, None]:
+    check_clip_model(conn, config)
     if config.faiss_index_path.exists() and config.faiss_id_map_path.exists():
         try:
             return load_index(config.faiss_index_path, config.faiss_id_map_path)

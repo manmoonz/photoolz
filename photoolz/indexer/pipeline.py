@@ -38,6 +38,11 @@ def run_index_pipeline(
     conn = get_connection(config.db_path)
     init_schema(conn)
 
+    from photoolz.search.faiss_index import ClipModelMismatchError, check_clip_model
+    if not force:
+        # Fail before doing any work; --force re-embeds, so it may be fixing the mismatch
+        check_clip_model(conn, config)
+
     console.print(f"[bold]Scanning[/bold] {library_path} ...")
     all_paths = list(scan_library(library_path))
     console.print(f"Found [cyan]{len(all_paths)}[/cyan] image files.")
@@ -187,8 +192,12 @@ def run_index_pipeline(
     # Phase 6: rebuild FAISS index
     console.print("[bold]Building FAISS index...[/bold]")
     from photoolz.search.faiss_index import build_or_update_faiss_index
-    build_or_update_faiss_index(conn, config)
-    console.print("[green]FAISS index updated.[/green]")
+    try:
+        build_or_update_faiss_index(conn, config)
+        console.print("[green]FAISS index updated.[/green]")
+    except ClipModelMismatchError as e:
+        # Embeddings for this directory are saved; other directories still need --force
+        console.print(f"[yellow]Skipped FAISS rebuild: {e.message}[/yellow]")
 
     # Record this directory in indexed_dirs with a live photo count
     from photoolz.db import upsert_indexed_dir, get_photo_count_under_path

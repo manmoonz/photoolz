@@ -50,7 +50,7 @@ crashing.
   - Reset `burst_group_id` to NULL before assigning new groups.
 - [x] **3.3 `LIKE` wildcards in path matching** — `db.py:get_photo_count_under_path`, `db.py:delete_photos_under_path`
   - `_` and `%` in folder names act as wildcards. Switch to the `substr()` prefix match that `get_photo_paths_under` / `relocate_paths` already use.
-- [ ] **3.4 A changed CLIP model isn't detected** — `indexer/pipeline.py`, `search/faiss_index.py`
+- [x] **3.4 A changed CLIP model isn't detected** — `indexer/pipeline.py`, `search/faiss_index.py`
   - `photos.clip_model` is stored but never checked. When `PHOTOOLZ_CLIP_MODEL` differs from the stored model, refuse to search or rebuild with a clear "re-index with --force" message. Today it fails when building the index if the embedding sizes differ, or quietly gives bad results if they match.
 - [ ] **3.5 People face counts drift** — `db.py`, `clustering/faces_cluster.py`
   - `people.face_count` is a stored count that goes stale when faces are replaced on re-index. Recompute it from `faces` after clustering and re-indexing, or derive it in `get_people`.

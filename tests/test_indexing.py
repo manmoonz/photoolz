@@ -10,6 +10,7 @@ from PIL import Image
 from photoolz import db
 from photoolz.config import Config
 from photoolz.indexer import embedder, faces, pipeline
+from photoolz.search import faiss_index
 
 DIM = 512
 
@@ -59,6 +60,7 @@ def env(tmp_path, monkeypatch):
         finally:
             conn.close()
 
+    run.config = config  # lets tests change settings such as clip_model between runs
     return library, run, query
 
 
@@ -172,3 +174,38 @@ def test_relative_library_path_is_stored_absolute(env, monkeypatch):
     # Indexing again via the absolute path must not create a second row
     run(library)
     assert len(query("SELECT id FROM photos")) == 1
+
+
+def test_clip_model_change_requires_force(env):
+    library, run, query = env
+    _write_image(library / "img0.png", red=10)
+    run()
+
+    run.config.clip_model = "ViT-L-14"
+    with pytest.raises(faiss_index.ClipModelMismatchError, match="ViT-B-32.*ViT-L-14"):
+        run()
+    with pytest.raises(faiss_index.ClipModelMismatchError):
+        faiss_index.load_or_build_index(db.get_connection(run.config.db_path), run.config)
+
+    run(force=True)
+    assert [r["clip_model"] for r in query("SELECT clip_model FROM photos")] == ["ViT-L-14"]
+    faiss_index.load_or_build_index(db.get_connection(run.config.db_path), run.config)
+
+
+def test_partial_force_reindex_skips_faiss_rebuild(env, capsys):
+    library, run, query = env
+    (library / "a").mkdir()
+    (library / "b").mkdir()
+    _write_image(library / "a" / "img0.png", red=10)
+    _write_image(library / "b" / "img1.png", red=20)
+    run()
+    index_mtime = run.config.faiss_index_path.stat().st_mtime_ns
+
+    run.config.clip_model = "ViT-L-14"
+    run(library / "a", force=True)  # b still has ViT-B-32 embeddings
+
+    assert "Skipped FAISS rebuild" in capsys.readouterr().out
+    assert run.config.faiss_index_path.stat().st_mtime_ns == index_mtime
+    models = {Path(r["file_path"]).name: r["clip_model"]
+              for r in query("SELECT file_path, clip_model FROM photos")}
+    assert models == {"img0.png": "ViT-L-14", "img1.png": "ViT-B-32"}
