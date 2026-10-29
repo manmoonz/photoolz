@@ -109,8 +109,6 @@ def search(query: str, top_k: int, since: str | None, until: str | None,
 # ---------------------------------------------------------------------------
 
 @cli.command()
-@click.option("--blur-threshold", default=100.0, show_default=True,
-              help="Laplacian variance threshold for sharpness.")
 @click.option("--worst", default=50, show_default=True, help="Show N worst photos.")
 @click.option("--output", default="table",
               type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
@@ -118,9 +116,13 @@ def search(query: str, top_k: int, since: str | None, until: str | None,
               help="Flag worst photos as deleted in the index (does NOT delete files).")
 @click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
 @click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
-def quality(blur_threshold: float, worst: int, output: str,
+def quality(worst: int, output: str,
             mark_deleted: bool, open_viewer: bool, viewer: str | None):
-    """Find low-quality photos (blur, exposure)."""
+    """Find low-quality photos (blur, exposure).
+
+    Uses the scores stored at index time. To re-score with a different blur
+    threshold, run 'photoolz db reindex --table photos --blur-threshold N'.
+    """
     from photoolz.db import get_worst_quality_photos, mark_deleted as db_mark_deleted
     from photoolz.utils.console import print_photo_table
 
@@ -685,7 +687,10 @@ def db_init():
 @click.option("--table", default="faiss",
               type=click.Choice(["photos", "faces", "faiss"]), show_default=True,
               help="Which component to rebuild.")
-def db_reindex(table: str):
+@click.option("--blur-threshold", default=100.0, show_default=True,
+              help="With --table photos: Laplacian variance at which a photo counts as fully sharp "
+                   "(lower = more lenient). Newly indexed photos always use the default.")
+def db_reindex(table: str, blur_threshold: float):
     """Rebuild a specific index component."""
     conn, config = _get_conn_and_config()
 
@@ -696,9 +701,9 @@ def db_reindex(table: str):
         console.print("[green]FAISS index rebuilt.[/green]")
 
     elif table == "photos":
-        from photoolz.quality.scorer import score_all_unscored
+        from photoolz.quality.scorer import rescore_all
         console.print("[bold]Re-scoring all photos...[/bold]")
-        count = score_all_unscored(conn, config)
+        count = rescore_all(conn, blur_threshold)
         console.print(f"[green]Scored {count} photos.[/green]")
 
     elif table == "faces":

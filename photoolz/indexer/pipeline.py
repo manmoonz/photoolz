@@ -77,6 +77,9 @@ def run_index_pipeline(
             meta["file_hash"] = file_hash
             meta["phash"] = phash_image(path)
             meta["indexed_at"] = now
+            # Clear derived data so a changed file doesn't keep its old scores or embedding
+            meta.update(blur_score=None, exposure_score=None, quality_score=None,
+                        clip_embedding=None, clip_model=None)
             photo_id = upsert_photo(conn, meta)
             return photo_id, str(path)
         except Exception as e:

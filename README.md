@@ -185,7 +185,7 @@ photoolz db init
 # Rebuild the FAISS vector index from the database (e.g. after manual DB edits)
 photoolz db reindex --table faiss
 
-# Re-score all photos for quality (blur + exposure)
+# Re-score all photos for quality (blur + exposure), optionally with --blur-threshold N
 photoolz db reindex --table photos
 
 # Remove index entries for photos that have been deleted from disk
@@ -241,8 +241,6 @@ photoolz quality
 # Show more results
 photoolz quality --worst 100
 
-# Use a stricter blur threshold (lower = flag more as blurry)
-photoolz quality --blur-threshold 50.0
 
 # Output as paths for manual review
 photoolz quality --output paths
@@ -250,6 +248,18 @@ photoolz quality --output paths
 # Flag the worst photos as deleted in the index (does NOT delete files on disk)
 photoolz quality --worst 20 --mark-deleted
 ```
+
+Scores are computed at index time. To change how strictly blur is judged, re-score the library with a different threshold. The threshold is the Laplacian variance at which a photo counts as fully sharp, so a higher value is stricter:
+
+```bash
+# Stricter: more photos count as blurry
+photoolz db reindex --table photos --blur-threshold 200
+
+# Back to the default
+photoolz db reindex --table photos
+```
+
+Photos indexed later are scored with the default threshold (100).
 
 ---
 

@@ -4,7 +4,11 @@ import sqlite3
 from pathlib import Path
 
 from photoolz.config import Config
-from photoolz.db import get_photos_missing_quality, bulk_update_quality_scores
+from photoolz.db import (
+    bulk_update_quality_scores,
+    get_all_photo_ids_and_paths,
+    get_photos_missing_quality,
+)
 from photoolz.quality.blur import laplacian_variance, blur_score_from_variance
 from photoolz.quality.exposure import exposure_score
 from photoolz.utils.console import console, make_progress
@@ -27,7 +31,16 @@ def score_photo(path: Path, blur_threshold: float = 100.0) -> tuple[float, float
 
 def score_all_unscored(conn: sqlite3.Connection, config: Config,
                         blur_threshold: float = 100.0) -> int:
-    rows = get_photos_missing_quality(conn)
+    return score_photos(conn, get_photos_missing_quality(conn), blur_threshold)
+
+
+def rescore_all(conn: sqlite3.Connection, blur_threshold: float = 100.0) -> int:
+    return score_photos(conn, get_all_photo_ids_and_paths(conn), blur_threshold)
+
+
+def score_photos(conn: sqlite3.Connection, rows: list,
+                 blur_threshold: float = 100.0) -> int:
+    """Score each (id, file_path) row and store the results. Returns the number scored."""
     if not rows:
         return 0
 
@@ -36,10 +49,11 @@ def score_all_unscored(conn: sqlite3.Connection, config: Config,
     with make_progress("Scoring quality", len(rows)) as progress:
         task = progress.add_task("Scoring quality", total=len(rows))
         for row in rows:
-            result = score_photo(Path(row["file_path"]), blur_threshold)
+            photo_id, file_path = row[0], row[1]
+            result = score_photo(Path(file_path), blur_threshold)
             if result:
                 blur, exp, quality = result
-                updates.append((blur, exp, quality, row["id"]))
+                updates.append((blur, exp, quality, photo_id))
             progress.advance(task)
 
     if updates:

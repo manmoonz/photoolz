@@ -130,6 +130,23 @@ def test_changed_file_replaces_its_old_faces(env):
     assert [r["bbox_top"] for r in rows] == [99]
 
 
+def test_changed_file_is_rescored_and_unchanged_file_keeps_its_score(env):
+    pytest.importorskip("cv2")
+    library, run, query = env
+    _write_image(library / "img0.png", red=10)
+    _write_image(library / "img1.png", red=20)
+    run()
+    query("UPDATE photos SET quality_score = -1")  # sentinel for "old score"
+
+    _write_image(library / "img0.png", red=99)
+    run()
+
+    scores = {Path(r["file_path"]).name: r["quality_score"]
+              for r in query("SELECT file_path, quality_score FROM photos")}
+    assert scores["img0.png"] not in (None, -1)
+    assert scores["img1.png"] == -1
+
+
 def test_index_completes_when_face_recognition_unavailable(env, monkeypatch, tmp_path):
     library, run, query = env
     monkeypatch.setattr(faces, "face_recognition_unavailable_reason", lambda: "pip install 'setuptools<81'")
