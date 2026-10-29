@@ -46,3 +46,23 @@ def test_merge_keeps_largest_by_actual_faces_and_totals_them(tmp_path):
 
     assert db.merge_people(conn, [small, large]) == large
     assert _counts(conn) == {large: 4}
+
+
+def test_cluster_faces_uses_largest_face_as_representative(tmp_path):
+    from photoolz.clustering.faces_cluster import cluster_faces
+
+    conn, photos = _setup(tmp_path)
+    rng = np.random.default_rng(0)
+    centers = rng.normal(size=(2, 128))
+    sizes = [10, 50, 20, 30, 40]  # photos[1] has the largest face of person A
+    for i, pid in enumerate(photos):
+        enc = centers[0 if i < 3 else 1] + rng.normal(scale=0.01, size=128)
+        s = sizes[i]
+        db.upsert_face(conn, {"photo_id": pid, "encoding": enc.astype(np.float64).tobytes(),
+                              "bbox_top": 0, "bbox_left": 0, "bbox_bottom": s, "bbox_right": s,
+                              "detected_at": "x"})
+
+    result = cluster_faces(conn, eps=0.5, min_samples=2)
+    assert result == {"clusters_found": 2, "faces_assigned": 5, "noise_faces": 0}
+    reps = sorted((r["face_count"], r["representative_photo_id"]) for r in db.get_people(conn))
+    assert reps == [(2, photos[4]), (3, photos[1])]

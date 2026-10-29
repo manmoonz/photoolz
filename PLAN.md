@@ -59,7 +59,7 @@ crashing.
 
 - [x] **4.1 Wrong `index` summary.** It always reports `updated: 0` and counts changed files as new. Count them separately (`indexer/pipeline.py`).
 - [x] **4.2 Duplicate detection.** Merge overlapping groups (union-find) instead of only dropping exact repeats, and leave out photos flagged as deleted that the search index still contains (`quality/duplicates.py`).
-- [ ] **4.3 Face clustering lookup.** Replace the O(n²) `face_ids.index()` with a dict, and pick a sharper face as each person's representative photo (`clustering/faces_cluster.py`).
+- [x] **4.3 Face clustering lookup.** Replace the O(n²) `face_ids.index()` with a dict, and pick a sharper face as each person's representative photo (`clustering/faces_cluster.py`).
 - [ ] **4.4 EXIF time zones.** EXIF times are local but stored as UTC. Store them without a time zone, or use `OffsetTimeOriginal` when present (`indexer/metadata.py`). Check that date filters still behave.
 - [ ] **4.5 Unused code.** Remove most of `utils/image_io.py` (keep `SUPPORTED_EXTENSIONS`), plus `update_quality_scores`, `get_photo_by_path` and `get_photos_missing_embedding` in `db.py`, and the unused `lru_cache` import in `embedder.py`.
 - [ ] **4.6 Status messages on stdout.** Warnings and "no results" messages go through the stdout `console`, so they end up in `--output paths/json/csv` pipes. `album propose` now uses `err_console` (stderr); audit the other commands the same way (`cli.py`).

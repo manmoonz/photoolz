@@ -8,7 +8,6 @@ from photoolz.db import (
     get_all_face_encodings,
     upsert_person,
     assign_person_to_faces,
-    get_photos_by_ids,
 )
 from photoolz.utils.console import console
 
@@ -23,7 +22,10 @@ def cluster_faces(conn: sqlite3.Connection, eps: float = 0.3,
         return {"clusters_found": 0, "faces_assigned": 0, "noise_faces": 0}
 
     face_ids = [r["id"] for r in rows]
-    photo_ids = [r["photo_id"] for r in rows]
+    photo_of = {r["id"]: r["photo_id"] for r in rows}
+    # Largest face in the cluster makes the clearest representative photo
+    area_of = {r["id"]: max(0, (r["bbox_bottom"] or 0) - (r["bbox_top"] or 0))
+                        * max(0, (r["bbox_right"] or 0) - (r["bbox_left"] or 0)) for r in rows}
     encodings = []
     for r in rows:
         try:
@@ -45,8 +47,7 @@ def cluster_faces(conn: sqlite3.Connection, eps: float = 0.3,
 
     assigned = 0
     for label, group_face_ids in cluster_map.items():
-        group_photo_ids = [photo_ids[face_ids.index(fid)] for fid in group_face_ids]
-        rep_photo_id = group_photo_ids[0] if group_photo_ids else None
+        rep_photo_id = photo_of[max(group_face_ids, key=lambda fid: area_of[fid])]
         person_id = upsert_person(conn, name=None, face_count=len(group_face_ids),
                                    rep_photo_id=rep_photo_id)
         assign_person_to_faces(conn, group_face_ids, person_id)

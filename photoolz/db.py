@@ -296,7 +296,10 @@ def delete_faces_for_photo(conn: sqlite3.Connection, photo_id: int) -> None:
 
 
 def get_all_face_encodings(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    return conn.execute("SELECT id, photo_id, encoding FROM faces WHERE person_id IS NULL").fetchall()
+    return conn.execute(
+        "SELECT id, photo_id, encoding, bbox_top, bbox_right, bbox_bottom, bbox_left "
+        "FROM faces WHERE person_id IS NULL"
+    ).fetchall()
 
 
 def reset_face_clusters(conn: sqlite3.Connection) -> None:
