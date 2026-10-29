@@ -11,7 +11,7 @@ from photoolz.db import (
 )
 from photoolz.quality.blur import laplacian_variance, blur_score_from_variance
 from photoolz.quality.exposure import exposure_score
-from photoolz.utils.console import console, make_progress
+from photoolz.utils.console import make_progress
 
 
 def compute_quality_score(blur: float, exposure: float,

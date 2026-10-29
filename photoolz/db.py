@@ -146,16 +146,6 @@ def get_file_hashes(conn: sqlite3.Connection) -> dict[str, str]:
     return {r["file_path"]: r["file_hash"] for r in rows}
 
 
-def get_photo_by_path(conn: sqlite3.Connection, file_path: str) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM photos WHERE file_path=?", (file_path,)).fetchone()
-
-
-def get_photos_missing_embedding(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    return conn.execute(
-        "SELECT id, file_path FROM photos WHERE clip_embedding IS NULL AND is_deleted=0"
-    ).fetchall()
-
-
 def get_all_embeddings(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
         "SELECT id, clip_embedding FROM photos WHERE clip_embedding IS NOT NULL AND is_deleted=0"
@@ -172,16 +162,6 @@ def update_clip_embedding(conn: sqlite3.Connection, photo_id: int, embedding: by
         conn.execute(
             "UPDATE photos SET clip_embedding=?, clip_model=? WHERE id=?",
             (embedding, model, photo_id),
-        )
-        conn.commit()
-
-
-def update_quality_scores(conn: sqlite3.Connection, photo_id: int,
-                           blur: float, exposure: float, quality: float) -> None:
-    with _write_lock:
-        conn.execute(
-            "UPDATE photos SET blur_score=?, exposure_score=?, quality_score=? WHERE id=?",
-            (blur, exposure, quality, photo_id),
         )
         conn.commit()
 
@@ -392,16 +372,6 @@ def get_people(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         f"LEFT JOIN photos ph ON ph.id = p.representative_photo_id "
         f"ORDER BY face_count DESC"
     ).fetchall()
-
-
-def get_photos_by_person(conn: sqlite3.Connection, person_name: str) -> list[int]:
-    rows = conn.execute(
-        "SELECT DISTINCT f.photo_id FROM faces f "
-        "JOIN people pe ON pe.id = f.person_id "
-        "WHERE pe.name=?",
-        (person_name,),
-    ).fetchall()
-    return [r["photo_id"] for r in rows]
 
 
 def get_photos_by_person_id(conn: sqlite3.Connection, person_id: int) -> list[sqlite3.Row]:

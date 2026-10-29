@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import sqlite3
 from collections import defaultdict
-from pathlib import Path
 
 from photoolz.config import Config
 from photoolz.db import get_all_phashes, get_photos_by_ids
 from photoolz.search.faiss_index import load_or_build_index, query_index
 from photoolz.indexer.embedder import deserialize_embedding
 from photoolz.utils.hash import hamming_distance
-from photoolz.utils.console import console
 
 
 def _phash_pairs(rows: list, hamming_threshold: int) -> list[list[int]]:

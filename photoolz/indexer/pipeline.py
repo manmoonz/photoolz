@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sqlite3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path

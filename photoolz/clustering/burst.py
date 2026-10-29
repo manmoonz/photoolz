@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime
 
 from photoolz.db import get_photos_ordered_by_time, assign_burst_group, reset_burst_groups
 from photoolz.utils.console import console

@@ -3,7 +3,6 @@ from __future__ import annotations
 import sqlite3
 
 from photoolz.config import Config
-from photoolz.db import get_photos_by_ids
 from photoolz.search.query import semantic_search
 
 
