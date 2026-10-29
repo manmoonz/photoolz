@@ -37,7 +37,7 @@ Photoolz is a local photo library CLI. It indexes photos once (storing metadata,
 | Module | Role |
 |---|---|
 | `config.py` | Loads `.env`; exposes `PHOTOOLZ_DATA_DIR`, `CLIP_MODEL`, `DEVICE` |
-| `db.py` | Thread-safe SQLite; schema is `CREATE TABLE IF NOT EXISTS` only (no migrations yet, see PLAN.md 5.2) |
+| `db.py` | Thread-safe SQLite; `SCHEMA` plus ordered `MIGRATIONS` (see below) |
 | `indexer/` | `scanner.py` finds files → `metadata.py` reads EXIF → `embedder.py` runs CLIP → `faces.py` runs face_recognition → `pipeline.py` orchestrates |
 | `search/` | `faiss_index.py` manages FAISS flat index; `query.py` embeds a text query and retrieves top-k, then `filters.py` applies SQL-based date/person/location filters |
 | `quality/` | `blur.py` (Laplacian variance) + `exposure.py` (histogram) → `scorer.py` aggregates; `duplicates.py` does two-stage pHash + CLIP matching |
@@ -50,6 +50,10 @@ Photoolz is a local photo library CLI. It indexes photos once (storing metadata,
 - `faces` → `people` is a one-to-many: each detected face links to a `people` row after clustering.
 - `albums` / `album_photos` store Claude-curated or manually created collections.
 - `indexed_dirs` tracks which directories have been indexed.
+
+**Schema changes need a migration.** `SCHEMA` in `db.py` is always the latest schema, and new databases are created at the latest version (`PRAGMA user_version`). An existing database is upgraded only by `photoolz db init`, which backs it up and then applies pending `MIGRATIONS`. Every other command refuses to run until then (`SchemaOutdatedError`), so the user decides when their data changes. To change the schema, update `SCHEMA` *and* append a migration; never edit or reorder existing ones. The user's database holds hand-entered data (people and place names, flags, albums) that re-indexing can't recreate.
+
+**`taken_at` is local wall-clock time without a time zone** (EXIF has none; file modification times are converted to local time).
 
 **Search over-retrieves** 10× top-k from FAISS before applying SQL filters so that date/person/location narrowing doesn't starve results.
 

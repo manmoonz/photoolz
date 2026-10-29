@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 import exifread
@@ -27,7 +27,7 @@ def parse_exif_datetime(raw: str) -> datetime | None:
     raw = raw.strip()
     for fmt in _DATE_FORMATS:
         try:
-            return datetime.strptime(raw, fmt).replace(tzinfo=timezone.utc)
+            return datetime.strptime(raw, fmt)
         except ValueError:
             continue
     return None
@@ -85,12 +85,10 @@ def _parse_filename_date(path: Path) -> datetime | None:
                     return datetime(
                         int(groups[0]), int(groups[1]), int(groups[2]),
                         int(groups[3]), int(groups[4]), int(groups[5]),
-                        tzinfo=timezone.utc,
                     )
                 elif len(groups) >= 3:
                     return datetime(
                         int(groups[0]), int(groups[1]), int(groups[2]),
-                        tzinfo=timezone.utc,
                     )
             except ValueError:
                 continue
@@ -98,6 +96,11 @@ def _parse_filename_date(path: Path) -> datetime | None:
 
 
 def extract_metadata(path: Path) -> dict:
+    """Read file, image and EXIF metadata.
+
+    taken_at is local wall-clock time without a time zone. EXIF and filename times carry
+    no zone, so file modification times are converted to local time to match.
+    """
     result: dict = {
         "file_path": str(path),
         "file_size_bytes": path.stat().st_size,
@@ -158,7 +161,7 @@ def extract_metadata(path: Path) -> dict:
     if result["taken_at"] is None:
         try:
             mtime = path.stat().st_mtime
-            dt = datetime.fromtimestamp(mtime, tz=timezone.utc)
+            dt = datetime.fromtimestamp(mtime)
             result["taken_at"] = dt.isoformat()
             result["taken_at_source"] = "filesystem"
         except Exception:

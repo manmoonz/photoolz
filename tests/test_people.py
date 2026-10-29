@@ -27,7 +27,7 @@ def _counts(conn):
 
 def test_face_counts_follow_faces_when_redetected(tmp_path):
     conn, photos = _setup(tmp_path)
-    alice = db.upsert_person(conn, name="Alice", face_count=3, rep_photo_id=photos[0])
+    alice = db.upsert_person(conn, name="Alice", rep_photo_id=photos[0])
     _add_faces(conn, photos[:3], alice)
     assert _counts(conn) == {alice: 3}
 
@@ -39,8 +39,8 @@ def test_face_counts_follow_faces_when_redetected(tmp_path):
 def test_merge_keeps_largest_by_actual_faces_and_totals_them(tmp_path):
     conn, photos = _setup(tmp_path)
     # Stored counts are deliberately wrong; the merge must use the real ones
-    small = db.upsert_person(conn, name=None, face_count=99, rep_photo_id=None)
-    large = db.upsert_person(conn, name=None, face_count=1, rep_photo_id=None)
+    small = db.upsert_person(conn, name=None, rep_photo_id=None)
+    large = db.upsert_person(conn, name=None, rep_photo_id=None)
     _add_faces(conn, photos[:1], small)
     _add_faces(conn, photos[1:4], large)
 

@@ -3,8 +3,11 @@ from __future__ import annotations
 import os
 import sqlite3
 import threading
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+import click
 
 _local = threading.local()
 _write_lock = threading.Lock()
@@ -65,7 +68,6 @@ CREATE INDEX IF NOT EXISTS idx_faces_person_id ON faces(person_id);
 CREATE TABLE IF NOT EXISTS people (
     id                      INTEGER PRIMARY KEY AUTOINCREMENT,
     name                    TEXT,
-    face_count              INTEGER,  -- unused: counts are derived from faces (drop once migrations exist)
     representative_photo_id INTEGER REFERENCES photos(id),
     clustered_at            TEXT    NOT NULL
 );
@@ -117,10 +119,123 @@ def get_connection(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
+# Schema migrations. SCHEMA above is always the latest schema, and a new database is
+# created at the latest version. An existing database records its version in
+# PRAGMA user_version and is upgraded only by 'photoolz db init' (migrate_schema), never
+# implicitly: other commands refuse to run until it has been upgraded. To change the
+# schema, update SCHEMA and append a migration; never edit or reorder existing ones.
+
+def _drop_people_face_count(conn: sqlite3.Connection) -> None:
+    # Face counts are derived from the faces table, which can't go stale
+    conn.execute("ALTER TABLE people DROP COLUMN face_count")
+
+
+def _taken_at_to_local(conn: sqlite3.Connection) -> None:
+    # taken_at was stored with +00:00, but EXIF and filename times are local wall-clock
+    # times, so only the label was wrong. File modification times really were UTC.
+    rows = conn.execute(
+        "SELECT id, taken_at, taken_at_source FROM photos WHERE taken_at IS NOT NULL"
+    ).fetchall()
+    updates = []
+    for r in rows:
+        dt = datetime.fromisoformat(r["taken_at"])
+        if dt.tzinfo is None:
+            continue
+        if r["taken_at_source"] == "filesystem":
+            dt = dt.astimezone()
+        updates.append((dt.replace(tzinfo=None).isoformat(), r["id"]))
+    conn.executemany("UPDATE photos SET taken_at=? WHERE id=?", updates)
+
+
+# (version, description, function), applied in order; version N upgrades from N-1
+MIGRATIONS = [
+    (1, "Drop the unused people.face_count column", _drop_people_face_count),
+    (2, "Store taken_at as local time without a time zone", _taken_at_to_local),
+]
+SCHEMA_VERSION = MIGRATIONS[-1][0]
+
+
+class SchemaOutdatedError(click.ClickException):
+    """The database needs 'photoolz db init' before this version of photoolz can use it."""
+
+
+def _schema_version(conn: sqlite3.Connection) -> int:
+    return conn.execute("PRAGMA user_version").fetchone()[0]
+
+
+def _is_new_database(conn: sqlite3.Connection) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='photos'"
+    ).fetchone() is None
+
+
+def pending_migrations(conn: sqlite3.Connection) -> list[tuple[int, str]]:
+    if _is_new_database(conn):
+        return []
+    version = _schema_version(conn)
+    return [(v, desc) for v, desc, _ in MIGRATIONS if v > version]
+
+
 def init_schema(conn: sqlite3.Connection) -> None:
+    """Create a new database, or check that an existing one is up to date."""
     with _write_lock:
-        conn.executescript(SCHEMA)
-        conn.commit()
+        if _is_new_database(conn):
+            conn.executescript(SCHEMA)
+            conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+            conn.commit()
+            return
+        version = _schema_version(conn)
+
+    if version > SCHEMA_VERSION:
+        raise click.ClickException(
+            f"The database is at schema version {version}, newer than this photoolz "
+            f"supports ({SCHEMA_VERSION}). Update photoolz."
+        )
+    pending = pending_migrations(conn)
+    if pending:
+        steps = "\n".join(f"  {v}. {desc}" for v, desc in pending)
+        raise SchemaOutdatedError(
+            f"The database needs upgrading before photoolz can use it:\n{steps}\n"
+            f"Run 'photoolz db init' to upgrade it (a backup is made first)."
+        )
+
+
+def migrate_schema(conn: sqlite3.Connection, db_path: Path) -> tuple[Path | None, list[str]]:
+    """Back up the database, then apply pending migrations in order.
+
+    Returns (backup_path, descriptions applied); backup_path is None if nothing was pending.
+    Each migration runs in its own transaction, so a failure leaves the database at the last
+    completed version.
+    """
+    if _is_new_database(conn):
+        init_schema(conn)
+        return None, []
+    pending = [m for m in MIGRATIONS if m[0] > _schema_version(conn)]
+    if not pending:
+        return None, []
+
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup_path = db_path.with_name(f"{db_path.name}.bak-v{_schema_version(conn)}-{stamp}")
+    backup = sqlite3.connect(str(backup_path))
+    with backup:
+        conn.backup(backup)
+    # A single self-contained file, without WAL side files
+    backup.execute("PRAGMA journal_mode=DELETE")
+    backup.close()
+
+    applied = []
+    with _write_lock:
+        for version, description, migrate in pending:
+            try:
+                conn.execute("BEGIN")
+                migrate(conn)
+                conn.execute(f"PRAGMA user_version = {version}")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            applied.append(description)
+    return backup_path, applied
 
 
 def upsert_photo(conn: sqlite3.Connection, record: dict) -> int:
@@ -313,14 +428,13 @@ def reset_face_clusters(conn: sqlite3.Connection) -> None:
         conn.commit()
 
 
-def upsert_person(conn: sqlite3.Connection, name: str | None, face_count: int,
-                   rep_photo_id: int | None) -> int:
+def upsert_person(conn: sqlite3.Connection, name: str | None, rep_photo_id: int | None) -> int:
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
     with _write_lock:
         cur = conn.execute(
-            "INSERT INTO people (name, face_count, representative_photo_id, clustered_at) VALUES (?,?,?,?)",
-            (name, face_count, rep_photo_id, now),
+            "INSERT INTO people (name, representative_photo_id, clustered_at) VALUES (?,?,?)",
+            (name, rep_photo_id, now),
         )
         conn.commit()
         return cur.lastrowid
@@ -341,7 +455,7 @@ def label_person(conn: sqlite3.Connection, person_id: int, name: str) -> None:
         conn.commit()
 
 
-# people.face_count goes stale when faces are re-detected, so counts are derived from faces
+# Derived rather than stored, so counts can't go stale when faces are re-detected
 _LIVE_FACE_COUNT = "(SELECT COUNT(*) FROM faces f WHERE f.person_id = p.id)"
 
 

@@ -803,9 +803,25 @@ def db():
 
 @db.command("init")
 def db_init():
-    """Initialize or migrate the SQLite schema."""
-    conn, _ = _get_conn_and_config()
-    console.print("[green]Database schema initialized.[/green]")
+    """Create the database, or upgrade it to the current schema.
+
+    Other commands refuse to run on a database that needs upgrading, so your data only
+    changes when you run this. A backup copy is made before any upgrade.
+    """
+    from photoolz.config import load_config
+    from photoolz.db import get_connection, migrate_schema
+
+    config = load_config()
+    config.ensure_data_dir()
+    conn = get_connection(config.db_path)
+    backup_path, applied = migrate_schema(conn, config.db_path)
+    if not applied:
+        console.print("[green]Database schema is up to date.[/green]")
+        return
+    console.print(f"[dim]Backed up the database to {backup_path}[/dim]")
+    for description in applied:
+        console.print(f"  [green]✓[/green] {description}")
+    console.print(f"[green]Upgraded the database ({len(applied)} migration(s)).[/green]")
 
 
 @db.command("reindex")

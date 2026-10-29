@@ -48,8 +48,7 @@ def cluster_faces(conn: sqlite3.Connection, eps: float = 0.3,
     assigned = 0
     for label, group_face_ids in cluster_map.items():
         rep_photo_id = photo_of[max(group_face_ids, key=lambda fid: area_of[fid])]
-        person_id = upsert_person(conn, name=None, face_count=len(group_face_ids),
-                                   rep_photo_id=rep_photo_id)
+        person_id = upsert_person(conn, name=None, rep_photo_id=rep_photo_id)
         assign_person_to_faces(conn, group_face_ids, person_id)
         assigned += len(group_face_ids)
 

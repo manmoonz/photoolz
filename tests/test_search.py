@@ -30,8 +30,8 @@ def lib(tmp_path, monkeypatch):
     monkeypatch.setattr(query, "load_clip_model", lambda *a, **k: (None, None, None))
     monkeypatch.setattr(query, "embed_text", lambda text, *a, **k: _vec(1.0))
 
-    alice = db.upsert_person(conn, name="Alice", face_count=0, rep_photo_id=None)
-    bob = db.upsert_person(conn, name="Bob", face_count=0, rep_photo_id=None)
+    alice = db.upsert_person(conn, name="Alice", rep_photo_id=None)
+    bob = db.upsert_person(conn, name="Bob", rep_photo_id=None)
     place = db.upsert_geo_cluster(conn, label="Beach", center_lat=0, center_lon=0, photo_count=0)
 
     ids = {}

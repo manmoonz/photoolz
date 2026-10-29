@@ -110,7 +110,7 @@ def test_force_reindex_does_not_duplicate_faces_or_drop_people(env):
         _write_image(library / f"img{i}.png", red=10 + i)
     run()
 
-    query("INSERT INTO people (name, face_count, clustered_at) VALUES ('Alice', 3, 'x')")
+    query("INSERT INTO people (name, clustered_at) VALUES ('Alice', 'x')")
     query("UPDATE faces SET person_id = 1")
 
     run(force=True)

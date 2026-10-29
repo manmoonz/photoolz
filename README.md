@@ -181,7 +181,7 @@ photoolz unindex ~/Pictures/OldTrip/ --force
 #### `photoolz db` — database management
 
 ```bash
-# Initialize or migrate the schema (safe to re-run)
+# Create the database, or upgrade it after updating photoolz (safe to re-run)
 photoolz db init
 
 # Rebuild the FAISS vector index from the database (e.g. after manual DB edits)
@@ -196,6 +196,8 @@ photoolz db prune
 # Point the index at a new location after moving photos or when a drive remounts elsewhere
 photoolz db relocate /media/me/DATA /run/media/me/DATA
 ```
+
+**Upgrading your database.** When an update to photoolz changes the database schema, commands stop with a message listing the pending changes, and leave your database untouched until you run `photoolz db init`. That command first saves a backup copy next to the database (for example `~/.photoolz/index.db.bak-v0-20261029-091500`), then applies the changes. If anything goes wrong, copy the backup back over `index.db`.
 
 `db relocate` keeps everything already computed (embeddings, faces, people, albums), so nothing is re-indexed. It reports how many photos it can find at the new location and asks before rewriting. If your photos have moved, run it **before** `db prune`, because prune would treat every photo at the old path as deleted.
 

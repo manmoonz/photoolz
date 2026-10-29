@@ -60,12 +60,12 @@ crashing.
 - [x] **4.1 Wrong `index` summary.** It always reports `updated: 0` and counts changed files as new. Count them separately (`indexer/pipeline.py`).
 - [x] **4.2 Duplicate detection.** Merge overlapping groups (union-find) instead of only dropping exact repeats, and leave out photos flagged as deleted that the search index still contains (`quality/duplicates.py`).
 - [x] **4.3 Face clustering lookup.** Replace the O(n²) `face_ids.index()` with a dict, and pick a sharper face as each person's representative photo (`clustering/faces_cluster.py`).
-- [ ] **4.4 EXIF time zones.** *Do after 5.2:* fixing this means rewriting existing `taken_at` values, and a mix of time-zone-aware and naive timestamps would crash burst detection (`dt - prev_dt`), so it needs a migration. EXIF times are local but stored as UTC. Store them without a time zone, or use `OffsetTimeOriginal` when present (`indexer/metadata.py`). Check that date filters still behave.
+- [x] **4.4 EXIF time zones.** *Do after 5.2:* fixing this means rewriting existing `taken_at` values, and a mix of time-zone-aware and naive timestamps would crash burst detection (`dt - prev_dt`), so it needs a migration. EXIF times are local but stored as UTC. Store them without a time zone, or use `OffsetTimeOriginal` when present (`indexer/metadata.py`). Check that date filters still behave.
 - [x] **4.5 Unused code.** Remove most of `utils/image_io.py` (keep `SUPPORTED_EXTENSIONS`), plus `update_quality_scores`, `get_photo_by_path` and `get_photos_missing_embedding` in `db.py`, and the unused `lru_cache` import in `embedder.py`.
 - [x] **4.6 Status messages on stdout.** Warnings and "no results" messages went through the stdout `console`, so they ended up in `--output paths/json/csv` pipes. They now go to `err_console` (stderr), and `album show --output json` no longer prints the title before the JSON.
 
 ## 5. Workflow gaps (features)
 
 - [x] **5.1 Acting on flagged photos.** Add `photoolz flagged list` / `flagged restore <id...>` / `flagged move <dest>` (move the files to a trash folder, then drop them from the index). Never delete files outright.
-- [ ] **5.2 Schema migrations.** Add a `schema_version` table (or `PRAGMA user_version`) and ordered migrations in `db.init_schema`, before any change that adds a column. The first migration can drop the unused `people.face_count` column (counts are now derived from `faces`).
+- [x] **5.2 Schema migrations.** Add a `schema_version` table (or `PRAGMA user_version`) and ordered migrations in `db.init_schema`, before any change that adds a column. The first migration can drop the unused `people.face_count` column (counts are now derived from `faces`).
 - [x] **5.3 Test coverage.** Add tests for search filters (`search/filters.py`), burst detection, geo clustering and duplicate grouping.
