@@ -464,6 +464,12 @@ def assign_geo_cluster(conn: sqlite3.Connection, photo_ids: list[int], cluster_i
         conn.commit()
 
 
+def reset_burst_groups(conn: sqlite3.Connection) -> None:
+    with _write_lock:
+        conn.execute("UPDATE photos SET burst_group_id = NULL")
+        conn.commit()
+
+
 def assign_burst_group(conn: sqlite3.Connection, photo_ids: list[int], group_id: int) -> None:
     with _write_lock:
         conn.executemany(

@@ -46,7 +46,7 @@ crashing.
 
 - [x] **3.1 `cluster geo` piles up clusters** — `clustering/geo_cluster.py`
   - Each run adds new `geo_clusters` rows without removing the old ones, so `stats` overcounts. Clear old clusters first, and keep labels from 2.1 where a new cluster lines up with a labeled old one (e.g. nearest center within the clustering radius).
-- [ ] **3.2 `cluster bursts` keeps old burst IDs** — `clustering/burst.py`
+- [x] **3.2 `cluster bursts` keeps old burst IDs** — `clustering/burst.py`
   - Reset `burst_group_id` to NULL before assigning new groups.
 - [ ] **3.3 `LIKE` wildcards in path matching** — `db.py:get_photo_count_under_path`, `db.py:delete_photos_under_path`
   - `_` and `%` in folder names act as wildcards. Switch to the `substr()` prefix match that `get_photo_paths_under` / `relocate_paths` already use.

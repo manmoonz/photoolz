@@ -3,11 +3,13 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timezone
 
-from photoolz.db import get_photos_ordered_by_time, assign_burst_group
+from photoolz.db import get_photos_ordered_by_time, assign_burst_group, reset_burst_groups
 from photoolz.utils.console import console
 
 
 def detect_bursts(conn: sqlite3.Connection, gap_seconds: int = 3) -> dict:
+    # Re-detection replaces previous groups, so photos no longer in a burst lose their ID
+    reset_burst_groups(conn)
     rows = get_photos_ordered_by_time(conn)
     if not rows:
         console.print("[yellow]No photos with timestamp data found.[/yellow]")
