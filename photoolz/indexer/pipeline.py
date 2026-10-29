@@ -204,11 +204,12 @@ def run_index_pipeline(
     live_count = get_photo_count_under_path(conn, str(library_path))
     upsert_indexed_dir(conn, str(library_path), live_count)
 
-    new_count = len(photo_id_map)
+    # "updated" covers files indexed before: changed content, or re-processed under --force
+    new_count = sum(1 for p in photo_id_map if p not in prev_hashes)
     return {
         "scanned": len(all_paths),
         "new": new_count,
-        "updated": 0,
+        "updated": len(photo_id_map) - new_count,
         "skipped": skipped,
         "errors": errors,
     }

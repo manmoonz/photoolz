@@ -209,3 +209,14 @@ def test_partial_force_reindex_skips_faiss_rebuild(env, capsys):
     models = {Path(r["file_path"]).name: r["clip_model"]
               for r in query("SELECT file_path, clip_model FROM photos")}
     assert models == {"img0.png": "ViT-L-14", "img1.png": "ViT-B-32"}
+
+
+def test_summary_counts_new_and_updated_separately(env):
+    library, run, query = env
+    for i in range(3):
+        _write_image(library / f"img{i}.png", red=10 + i)
+    assert run() == {"scanned": 3, "new": 3, "updated": 0, "skipped": 0, "errors": 0}
+
+    _write_image(library / "img0.png", red=200)
+    _write_image(library / "img3.png", red=30)
+    assert run() == {"scanned": 4, "new": 1, "updated": 1, "skipped": 2, "errors": 0}
