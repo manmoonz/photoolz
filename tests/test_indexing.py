@@ -39,7 +39,7 @@ def _fake_detect_faces(path, model="hog"):
 def env(tmp_path, monkeypatch):
     monkeypatch.setattr(embedder, "load_clip_model", lambda *a, **k: (None, None, None))
     monkeypatch.setattr(embedder, "embed_images", _fake_embed_images)
-    monkeypatch.setattr(faces, "is_face_recognition_available", lambda: True)
+    monkeypatch.setattr(faces, "face_recognition_unavailable_reason", lambda: None)
     monkeypatch.setattr(pipeline, "detect_and_encode_faces", _fake_detect_faces)
 
     library = tmp_path / "library"
@@ -128,6 +128,17 @@ def test_changed_file_replaces_its_old_faces(env):
 
     rows = query("SELECT bbox_top FROM faces")
     assert [r["bbox_top"] for r in rows] == [99]
+
+
+def test_index_completes_when_face_recognition_unavailable(env, monkeypatch, tmp_path):
+    library, run, query = env
+    monkeypatch.setattr(faces, "face_recognition_unavailable_reason", lambda: "pip install 'setuptools<81'")
+    _write_image(library / "img0.png", red=10)
+    run()
+
+    assert query("SELECT COUNT(*) AS n FROM faces")[0]["n"] == 0
+    assert query("SELECT COUNT(*) AS n FROM photos WHERE clip_embedding IS NOT NULL")[0]["n"] == 1
+    assert (tmp_path / "data" / "clip.faiss").exists()
 
 
 def test_relative_library_path_is_stored_absolute(env, monkeypatch):
