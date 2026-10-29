@@ -524,16 +524,19 @@ def list_indexed_dirs(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+# Prefix matching uses substr() rather than LIKE, where '_' and '%' in paths act as wildcards.
+
 def get_photo_count_under_path(conn: sqlite3.Connection, root: str) -> int:
     prefix = root.rstrip("/") + "/"
     return conn.execute(
-        "SELECT COUNT(*) FROM photos WHERE file_path LIKE ? AND is_deleted=0",
-        (prefix + "%",),
+        "SELECT COUNT(*) FROM photos WHERE substr(file_path, 1, ?) = ? AND is_deleted=0",
+        (len(prefix), prefix),
     ).fetchone()[0]
 
 
 def delete_photos_under_path(conn: sqlite3.Connection, root: str) -> int:
     prefix = root.rstrip("/") + "/"
+    params = (len(prefix), prefix)
     with _write_lock:
         # Clear representative_photo_id references before deletion to avoid
         # the bare REFERENCES photos(id) FK constraint on the people table.
@@ -541,13 +544,13 @@ def delete_photos_under_path(conn: sqlite3.Connection, root: str) -> int:
             """
             UPDATE people SET representative_photo_id = NULL
             WHERE representative_photo_id IN (
-                SELECT id FROM photos WHERE file_path LIKE ?
+                SELECT id FROM photos WHERE substr(file_path, 1, ?) = ?
             )
             """,
-            (prefix + "%",),
+            params,
         )
         cur = conn.execute(
-            "DELETE FROM photos WHERE file_path LIKE ?", (prefix + "%",)
+            "DELETE FROM photos WHERE substr(file_path, 1, ?) = ?", params
         )
         conn.commit()
     return cur.rowcount
@@ -589,8 +592,6 @@ def remove_indexed_dir(conn: sqlite3.Connection, path: str) -> None:
         conn.execute("DELETE FROM indexed_dirs WHERE path = ?", (path,))
         conn.commit()
 
-
-# Prefix matching uses substr() rather than LIKE, where '_' and '%' in paths act as wildcards.
 
 def get_photo_paths_under(conn: sqlite3.Connection, root: str) -> list[str]:
     prefix = root.rstrip("/") + "/"

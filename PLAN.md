@@ -48,7 +48,7 @@ crashing.
   - Each run adds new `geo_clusters` rows without removing the old ones, so `stats` overcounts. Clear old clusters first, and keep labels from 2.1 where a new cluster lines up with a labeled old one (e.g. nearest center within the clustering radius).
 - [x] **3.2 `cluster bursts` keeps old burst IDs** — `clustering/burst.py`
   - Reset `burst_group_id` to NULL before assigning new groups.
-- [ ] **3.3 `LIKE` wildcards in path matching** — `db.py:get_photo_count_under_path`, `db.py:delete_photos_under_path`
+- [x] **3.3 `LIKE` wildcards in path matching** — `db.py:get_photo_count_under_path`, `db.py:delete_photos_under_path`
   - `_` and `%` in folder names act as wildcards. Switch to the `substr()` prefix match that `get_photo_paths_under` / `relocate_paths` already use.
 - [ ] **3.4 A changed CLIP model isn't detected** — `indexer/pipeline.py`, `search/faiss_index.py`
   - `photos.clip_model` is stored but never checked. When `PHOTOOLZ_CLIP_MODEL` differs from the stored model, refuse to search or rebuild with a clear "re-index with --force" message. Today it fails when building the index if the embedding sizes differ, or quietly gives bad results if they match.
