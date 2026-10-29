@@ -644,6 +644,48 @@ def db_reindex(table: str):
         console.print("[yellow]Face re-detection requires re-running 'photoolz index'.[/yellow]")
 
 
+@db.command("relocate")
+@click.argument("old_path")
+@click.argument("new_path", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option("--force", is_flag=True, help="Skip confirmation prompt.")
+def db_relocate(old_path: str, new_path: Path, force: bool):
+    """Point index entries under OLD_PATH at NEW_PATH after moving or remounting photos.
+
+    Example: photoolz db relocate /media/me/DATA /run/media/me/DATA
+    """
+    import os
+    import sqlite3
+    from photoolz.db import get_photo_paths_under, relocate_paths
+
+    # OLD_PATH usually no longer exists, so normalize without resolving symlinks
+    old_root = os.path.abspath(old_path)
+    new_root = str(new_path.resolve())
+    conn, _ = _get_conn_and_config()
+
+    paths = get_photo_paths_under(conn, old_root)
+    if not paths:
+        console.print(f"[yellow]No indexed photos found under {old_root}[/yellow]")
+        return
+
+    found = sum(os.path.exists(new_root + p[len(old_root):]) for p in paths)
+    color = "green" if found == len(paths) else "yellow"
+    console.print(f"[{color}]{found} of {len(paths)} photos exist under {new_root}.[/{color}]")
+
+    if not force:
+        click.confirm(f"Rewrite {len(paths)} paths from {old_root} to {new_root}?", abort=True)
+
+    try:
+        photos, dirs = relocate_paths(conn, old_root, new_root)
+    except sqlite3.IntegrityError:
+        console.print(
+            f"[red]Some photos are already indexed under {new_root}; nothing was changed.[/red]\n"
+            f"[dim]Run 'photoolz unindex {new_root}' first, or use 'photoolz db prune'.[/dim]"
+        )
+        raise SystemExit(1)
+
+    console.print(f"[green]Relocated {photos} photo(s) and {dirs} indexed director(ies).[/green]")
+
+
 @db.command("prune")
 def db_prune():
     """Remove indexed photos whose files no longer exist on disk."""

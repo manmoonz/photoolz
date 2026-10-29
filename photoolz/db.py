@@ -555,6 +555,48 @@ def remove_indexed_dir(conn: sqlite3.Connection, path: str) -> None:
         conn.commit()
 
 
+# Prefix matching uses substr() rather than LIKE, where '_' and '%' in paths act as wildcards.
+
+def get_photo_paths_under(conn: sqlite3.Connection, root: str) -> list[str]:
+    prefix = root.rstrip("/") + "/"
+    rows = conn.execute(
+        "SELECT file_path FROM photos WHERE substr(file_path, 1, ?) = ?",
+        (len(prefix), prefix),
+    ).fetchall()
+    return [r["file_path"] for r in rows]
+
+
+def relocate_paths(conn: sqlite3.Connection, old_root: str, new_root: str) -> tuple[int, int]:
+    """Rewrite the old_root prefix to new_root in photos and indexed_dirs.
+
+    Returns (photos_updated, dirs_updated). Raises sqlite3.IntegrityError, with
+    nothing changed, if a rewritten path is already indexed.
+    """
+    old_root, new_root = old_root.rstrip("/"), new_root.rstrip("/")
+    old_prefix, new_prefix = old_root + "/", new_root + "/"
+    n = len(old_prefix)
+    with _write_lock:
+        try:
+            photos = conn.execute(
+                "UPDATE photos SET file_path = ? || substr(file_path, ?) "
+                "WHERE substr(file_path, 1, ?) = ?",
+                (new_prefix, n + 1, n, old_prefix),
+            ).rowcount
+            dirs = conn.execute(
+                "UPDATE indexed_dirs SET path = ? || substr(path, ?) "
+                "WHERE substr(path, 1, ?) = ?",
+                (new_prefix, n + 1, n, old_prefix),
+            ).rowcount
+            dirs += conn.execute(
+                "UPDATE indexed_dirs SET path = ? WHERE path = ?", (new_root, old_root)
+            ).rowcount
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            raise
+    return photos, dirs
+
+
 def get_stats(conn: sqlite3.Connection) -> dict[str, Any]:
     total = conn.execute("SELECT COUNT(*) FROM photos WHERE is_deleted=0").fetchone()[0]
     indexed = conn.execute(

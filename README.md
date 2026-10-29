@@ -189,7 +189,12 @@ photoolz db reindex --table photos
 
 # Remove index entries for photos that have been deleted from disk
 photoolz db prune
+
+# Point the index at a new location after moving photos or when a drive remounts elsewhere
+photoolz db relocate /media/me/DATA /run/media/me/DATA
 ```
+
+`db relocate` keeps everything already computed (embeddings, faces, people, albums), so nothing is re-indexed. It reports how many photos it can find at the new location and asks before rewriting. If your photos have moved, run it **before** `db prune`, because prune would treat every photo at the old path as deleted.
 
 ---
 
