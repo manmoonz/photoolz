@@ -27,9 +27,15 @@ dependencies = [
     "python-dotenv>=1.0.0",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
 [project.scripts]
 photoolz = "photoolz.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["photoolz*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

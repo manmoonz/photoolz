@@ -7,13 +7,16 @@ from pathlib import Path
 
 from photoolz.config import Config
 from photoolz.db import (
+    delete_faces_for_photo,
     get_connection,
+    get_file_hashes,
+    get_photo_ids_with_faces,
     init_schema,
     upsert_photo,
     update_clip_embedding,
     upsert_face,
 )
-from photoolz.indexer.scanner import compute_file_hash, needs_reindex, scan_library
+from photoolz.indexer.scanner import compute_file_hash, scan_library
 from photoolz.indexer.metadata import extract_metadata
 from photoolz.indexer.faces import detect_and_encode_faces
 from photoolz.utils.console import console, make_progress
@@ -28,6 +31,9 @@ def run_index_pipeline(
     skip_faces: bool = False,
     clip_batch_size: int = 64,
 ) -> dict:
+    # Store absolute paths so lookups, prune and unindex work from any cwd
+    library_path = library_path.resolve()
+
     config.ensure_data_dir()
     conn = get_connection(config.db_path)
     init_schema(conn)
@@ -39,13 +45,14 @@ def run_index_pipeline(
     # Phase 1: metadata + hash filtering
     to_index: list[tuple[Path, str]] = []
     skipped = 0
+    prev_hashes = get_file_hashes(conn)
 
     with make_progress("Hashing files", len(all_paths)) as progress:
         task = progress.add_task("Hashing files", total=len(all_paths))
         for path in all_paths:
             try:
                 file_hash = compute_file_hash(path)
-                if needs_reindex(conn, path, file_hash, force):
+                if force or prev_hashes.get(str(path)) != file_hash:
                     to_index.append((path, file_hash))
                 else:
                     skipped += 1
@@ -142,8 +149,17 @@ def run_index_pipeline(
 
     if not skip_faces:
         console.print("[bold]Detecting faces...[/bold]")
-        face_paths = [(path, photo_id_map[str(path)])
-                      for path, _ in to_index if str(path) in photo_id_map]
+        # Keep existing faces (and their person assignments) for files whose content
+        # hasn't changed, e.g. under --force; only detect where faces are missing or stale.
+        have_faces = get_photo_ids_with_faces(conn)
+        face_paths = []
+        for path, file_hash in to_index:
+            photo_id = photo_id_map.get(str(path))
+            if photo_id is None:
+                continue
+            if prev_hashes.get(str(path)) == file_hash and photo_id in have_faces:
+                continue
+            face_paths.append((path, photo_id))
 
         # dlib's HOG detector is not thread-safe — must run sequentially
         total_faces = 0
@@ -151,6 +167,7 @@ def run_index_pipeline(
             task = progress.add_task("Detecting faces", total=len(face_paths))
             for path, photo_id in face_paths:
                 faces = detect_and_encode_faces(path)
+                delete_faces_for_photo(conn, photo_id)
                 for face in faces:
                     face["photo_id"] = photo_id
                     face["detected_at"] = now

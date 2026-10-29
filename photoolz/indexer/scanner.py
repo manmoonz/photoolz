@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sqlite3
 from collections.abc import Generator
 from pathlib import Path
 
@@ -24,15 +23,3 @@ def _os_walk(path: Path):
 
 def compute_file_hash(path: Path) -> str:
     return sha256_file(path)
-
-
-def needs_reindex(conn: sqlite3.Connection, path: Path,
-                  current_hash: str, force: bool = False) -> bool:
-    if force:
-        return True
-    row = conn.execute(
-        "SELECT file_hash FROM photos WHERE file_path=?", (str(path),)
-    ).fetchone()
-    if row is None:
-        return True
-    return row["file_hash"] != current_hash

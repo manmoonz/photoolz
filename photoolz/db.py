@@ -133,12 +133,17 @@ def upsert_photo(conn: sqlite3.Connection, record: dict) -> int:
         ON CONFLICT(file_path) DO UPDATE SET {updates}
     """
     with _write_lock:
-        cur = conn.execute(sql, list(record.values()))
+        conn.execute(sql, list(record.values()))
         conn.commit()
-        if cur.lastrowid:
-            return cur.lastrowid
+        # Don't use cur.lastrowid: when the UPDATE branch runs it still holds the id of
+        # the last row *inserted* on this connection, which is a different photo.
         row = conn.execute("SELECT id FROM photos WHERE file_path=?", (record["file_path"],)).fetchone()
         return row["id"]
+
+
+def get_file_hashes(conn: sqlite3.Connection) -> dict[str, str]:
+    rows = conn.execute("SELECT file_path, file_hash FROM photos").fetchall()
+    return {r["file_path"]: r["file_hash"] for r in rows}
 
 
 def get_photo_by_path(conn: sqlite3.Connection, file_path: str) -> sqlite3.Row | None:
@@ -277,6 +282,17 @@ def upsert_face(conn: sqlite3.Connection, record: dict) -> int:
         cur = conn.execute(sql, list(record.values()))
         conn.commit()
         return cur.lastrowid
+
+
+def get_photo_ids_with_faces(conn: sqlite3.Connection) -> set[int]:
+    rows = conn.execute("SELECT DISTINCT photo_id FROM faces").fetchall()
+    return {r["photo_id"] for r in rows}
+
+
+def delete_faces_for_photo(conn: sqlite3.Connection, photo_id: int) -> None:
+    with _write_lock:
+        conn.execute("DELETE FROM faces WHERE photo_id=?", (photo_id,))
+        conn.commit()
 
 
 def get_all_face_encodings(conn: sqlite3.Connection) -> list[sqlite3.Row]:

@@ -15,7 +15,9 @@ pip install face_recognition  # optional, enables face clustering
 # Run the CLI
 photoolz --help
 
-# No test suite or lint tooling exists yet
+# Tests (CLIP and face detection are faked, so torch/dlib aren't needed)
+pip install -e '.[dev]'
+pytest
 ```
 
 ## Architecture
