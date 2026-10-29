@@ -374,8 +374,8 @@ photoolz album propose "beach photos" --save
 # Output just the selected file paths
 photoolz album propose "hiking trip" --output paths
 
-# Use a specific Claude model
-photoolz album propose "family reunion" --model claude-opus-4-5
+# Use a specific Claude model (default: claude-opus-5-5, or PHOTOOLZ_ALBUM_MODEL in .env)
+photoolz album propose "family reunion" --model claude-sonnet-5-5
 ```
 
 ---

@@ -17,6 +17,8 @@ from rich.progress import (
 from rich.table import Table
 
 console = Console()
+# Status and warnings, kept off stdout so --output paths/json/csv can be piped
+err_console = Console(stderr=True)
 
 _PATH_COLS = {"file_path", "rep_path"}
 _NUMERIC_COLS = {

@@ -224,7 +224,8 @@ def album():
 @click.option("--count", default=40, show_default=True, help="Target number of photos.")
 @click.option("--candidates", default=120, show_default=True,
               help="Number of CLIP candidates to send to Claude.")
-@click.option("--model", default="claude-opus-4-5", show_default=True)
+@click.option("--model", default=None,
+              help="Claude model (default: PHOTOOLZ_ALBUM_MODEL, or claude-opus-5-5).")
 @click.option("--since", default=None, help="Start date filter YYYY-MM-DD.")
 @click.option("--until", default=None, help="End date filter YYYY-MM-DD.")
 @click.option("--location", default=None, help="Filter by geo cluster label.")
@@ -233,34 +234,41 @@ def album():
               type=click.Choice(["table", "paths", "json", "csv"]), show_default=True)
 @click.option("--open", "open_viewer", is_flag=True, help="Open results in an image viewer.")
 @click.option("--viewer", default=None, help="Viewer command (default: auto-detect or PHOTOOLZ_VIEWER).")
-def album_propose(query: str, count: int, candidates: int, model: str,
+def album_propose(query: str, count: int, candidates: int, model: str | None,
                   since: str | None, until: str | None, location: str | None,
                   save: bool, output: str, open_viewer: bool, viewer: str | None):
     """Propose a photo album using Claude AI."""
     from photoolz.albums.candidates import retrieve_candidates
     from photoolz.albums.curator import propose_album
     from photoolz.db import save_album, get_photos_by_ids
-    from photoolz.utils.console import print_album, print_photo_table
+    from photoolz.utils.console import err_console, print_album, print_photo_table
 
     _COLS = ["id", "file_path", "taken_at", "quality_score"]
     conn, config = _get_conn_and_config()
 
-    console.print(f"[bold]Retrieving {candidates} candidates...[/bold]")
+    err_console.print(f"[bold]Retrieving {candidates} candidates...[/bold]")
     cands = retrieve_candidates(query, conn, config, n_candidates=candidates,
                                  since=since, until=until, location_label=location)
     if not cands:
-        console.print("[red]No candidate photos found. Make sure the library is indexed.[/red]")
+        err_console.print("[red]No candidate photos found. Make sure the library is indexed.[/red]")
         return
 
-    console.print(f"[bold]Asking Claude to curate {count} photos...[/bold]")
+    err_console.print(f"[bold]Asking Claude to curate {count} photos...[/bold]")
     try:
-        result = propose_album(query, cands, target_count=count, model=model)
+        result = propose_album(query, cands, target_count=count, model=model or config.album_model)
     except Exception as e:
-        console.print(f"[red]Album proposal failed: {e}[/red]")
+        err_console.print(f"[red]Album proposal failed: {e}[/red]")
         raise SystemExit(1)
 
-    photos = get_photos_by_ids(conn, result["photo_ids"])
-    photo_dicts = [dict(p) for p in photos]
+    if result["dropped_ids"]:
+        err_console.print(
+            f"[yellow]Ignored {len(result['dropped_ids'])} selected ID(s) that were not "
+            f"candidates or were repeated: {result['dropped_ids']}[/yellow]"
+        )
+
+    # get_photos_by_ids doesn't preserve order; show photos in Claude's ranked order
+    by_id = {p["id"]: dict(p) for p in get_photos_by_ids(conn, result["photo_ids"])}
+    photo_dicts = [by_id[pid] for pid in result["photo_ids"] if pid in by_id]
 
     if output == "paths":
         for p in photo_dicts:
@@ -280,7 +288,7 @@ def album_propose(query: str, count: int, candidates: int, model: str,
     if save:
         album_id = save_album(conn, result["title"], result["description"],
                                query, result["photo_ids"])
-        console.print(f"\n[green]Album saved with ID {album_id}.[/green]")
+        err_console.print(f"\n[green]Album saved with ID {album_id}.[/green]")
 
 
 @album.command("list")

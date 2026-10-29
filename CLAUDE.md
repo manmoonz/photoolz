@@ -20,6 +20,10 @@ pip install -e '.[dev]'
 pytest
 ```
 
+## Outstanding work
+
+`PLAN.md` lists known issues in priority order. Pick up from the first unchecked item, and tick it off in the commit that fixes it.
+
 ## Architecture
 
 Photoolz is a local photo library CLI. It indexes photos once (storing metadata, CLIP embeddings, and face encodings in SQLite + a FAISS flat index), then supports semantic search, quality analysis, duplicate detection, face/geo/burst clustering, and Claude-powered album curation — all offline except `album propose`.
@@ -53,7 +57,7 @@ Photoolz is a local photo library CLI. It indexes photos once (storing metadata,
 
 **CLIP model** is loaded once per process in `embedder.py` and cached on the module. Default: `ViT-B-32` via `open_clip`.
 
-**`album propose`** is the only command requiring `ANTHROPIC_API_KEY`. It uses `tool_use` so Claude can return a structured photo selection with ranked ordering.
+**`album propose`** is the only command requiring `ANTHROPIC_API_KEY`. It uses a strict `create_album` tool (with `tool_choice` auto, since current models reject forced tool use) so Claude returns a structured, ranked photo selection; IDs are validated against the candidates. The model defaults to `claude-opus-5-5` (`PHOTOOLZ_ALBUM_MODEL`).
 
 ## Configuration
 
@@ -64,4 +68,5 @@ PHOTOOLZ_DATA_DIR=~/.photoolz/   # SQLite DB, FAISS index, thumbnails
 PHOTOOLZ_CLIP_MODEL=ViT-B-32     # Any open_clip model name
 PHOTOOLZ_DEVICE=auto             # cpu | cuda | mps
 ANTHROPIC_API_KEY=...            # Required for album propose only
+PHOTOOLZ_ALBUM_MODEL=claude-opus-5-5  # Optional
 ```

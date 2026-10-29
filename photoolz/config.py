@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+DEFAULT_ALBUM_MODEL = "claude-opus-5-5"
+
 
 def _default_data_dir() -> Path:
     override = os.environ.get("PHOTOOLZ_DATA_DIR")
@@ -23,6 +25,7 @@ class Config:
     clip_model: str = "ViT-B-32"
     clip_pretrained: str = "openai"
     device: str = "cpu"
+    album_model: str = DEFAULT_ALBUM_MODEL
 
     @property
     def db_path(self) -> Path:
@@ -62,4 +65,5 @@ def load_config(library_path: str | Path | None = None) -> Config:
         data_dir=data_dir,
         clip_model=clip_model,
         device=device,
+        album_model=os.environ.get("PHOTOOLZ_ALBUM_MODEL", DEFAULT_ALBUM_MODEL),
     )
