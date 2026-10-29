@@ -108,8 +108,10 @@ photoolz cluster faces
 photoolz people list
 photoolz people label 1 "Alice"
 
-# 6. Cluster by GPS location
+# 6. Cluster by GPS location and name the places
 photoolz cluster geo
+photoolz places list
+photoolz places label 3 "Yosemite"
 
 # 7. Search
 photoolz search "beach vacation" --since 2024-06-01 --until 2024-08-31
@@ -213,7 +215,7 @@ photoolz search "family dinner" --since 2024-12-01 --until 2024-12-31
 # Filter by a named person (requires face clustering first)
 photoolz search "birthday party" --person Alice
 
-# Filter by a named location (requires geo clustering first)
+# Filter by a named location (requires 'cluster geo' and 'places label' first)
 photoolz search "hiking" --location "Yosemite"
 
 # Return more results
@@ -305,6 +307,25 @@ photoolz cluster geo
 # Larger radius — useful for city-level grouping
 photoolz cluster geo --eps-km 5.0
 ```
+
+---
+
+#### `photoolz places` — name locations
+
+After `photoolz cluster geo`, give the location clusters names so they can be used with `--location` in `search` and `album propose`.
+
+```bash
+# List location clusters (ID, name, photo count, center, date range)
+photoolz places list
+
+# Name a cluster
+photoolz places label 3 "Yosemite"
+
+# Now location filters work
+photoolz search "hiking" --location "Yosemite"
+```
+
+The date range helps tell clusters apart when you don't recognise the coordinates.
 
 ---
 

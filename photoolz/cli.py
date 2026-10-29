@@ -530,6 +530,59 @@ def people_photos(person_id: int, output: str, open_viewer: bool, viewer: str | 
 
 
 # ---------------------------------------------------------------------------
+# places
+# ---------------------------------------------------------------------------
+
+@cli.group()
+def places():
+    """Places (geo cluster) commands."""
+
+
+@places.command("list")
+def places_list():
+    """List location clusters, so they can be named with 'places label'."""
+    from photoolz.db import get_geo_clusters
+    from rich.table import Table
+
+    conn, _ = _get_conn_and_config()
+    rows = get_geo_clusters(conn)
+    if not rows:
+        console.print("[yellow]No places found. Run 'photoolz cluster geo' first.[/yellow]")
+        return
+
+    table = Table(title="Places", show_header=True, header_style="bold cyan")
+    table.add_column("ID", min_width=4, no_wrap=True)
+    table.add_column("Name")
+    table.add_column("Photos", min_width=6, no_wrap=True)
+    table.add_column("Center", no_wrap=True)
+    table.add_column("Dates", no_wrap=True)
+    for r in rows:
+        first, last = (r["first_taken"] or "")[:10], (r["last_taken"] or "")[:10]
+        table.add_row(
+            str(r["id"]),
+            r["label"] or "[dim]unlabeled[/dim]",
+            str(r["photo_count"]),
+            f"{r['center_lat']:.4f}, {r['center_lon']:.4f}",
+            first if first == last else f"{first} – {last}",
+        )
+    console.print(table)
+
+
+@places.command("label")
+@click.argument("place_id", type=int)
+@click.argument("name")
+def places_label(place_id: int, name: str):
+    """Name a location cluster, for use with 'search --location'."""
+    from photoolz.db import label_geo_cluster
+
+    conn, _ = _get_conn_and_config()
+    if not label_geo_cluster(conn, place_id, name):
+        console.print(f"[red]No place with ID {place_id}. See 'photoolz places list'.[/red]")
+        raise SystemExit(1)
+    console.print(f"[green]Place {place_id} labeled as '{name}'.[/green]")
+
+
+# ---------------------------------------------------------------------------
 # dirs
 # ---------------------------------------------------------------------------
 

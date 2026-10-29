@@ -426,6 +426,23 @@ def upsert_geo_cluster(conn: sqlite3.Connection, label: str | None,
         return cur.lastrowid
 
 
+def get_geo_clusters(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT g.id, g.label, g.center_lat, g.center_lon, "
+        "COUNT(p.id) AS photo_count, MIN(p.taken_at) AS first_taken, MAX(p.taken_at) AS last_taken "
+        "FROM geo_clusters g LEFT JOIN photos p ON p.geo_cluster_id = g.id AND p.is_deleted = 0 "
+        "GROUP BY g.id ORDER BY photo_count DESC"
+    ).fetchall()
+
+
+def label_geo_cluster(conn: sqlite3.Connection, cluster_id: int, label: str) -> bool:
+    """Name a geo cluster. Returns False if no cluster has that ID."""
+    with _write_lock:
+        cur = conn.execute("UPDATE geo_clusters SET label=? WHERE id=?", (label, cluster_id))
+        conn.commit()
+    return cur.rowcount > 0
+
+
 def assign_geo_cluster(conn: sqlite3.Connection, photo_ids: list[int], cluster_id: int) -> None:
     with _write_lock:
         conn.executemany(

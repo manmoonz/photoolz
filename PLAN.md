@@ -33,7 +33,7 @@ crashing.
 
 ## 2. Features that look like they work but don't
 
-- [ ] **2.1 Location clusters can't be named, so `--location` never matches** — `clustering/geo_cluster.py`, `db.py`, `cli.py`
+- [x] **2.1 Location clusters can't be named, so `--location` never matches** — `clustering/geo_cluster.py`, `db.py`, `cli.py`
   - Add `photoolz places list` (ID, label, photo count, center, date range) and `photoolz places label <id> <name>`, mirroring `people`. Reverse geocoding is optional later; it would need a network call or an offline dataset.
   - *Done when:* `search --location <name>` works after `places label`, and there's a test for it.
 
