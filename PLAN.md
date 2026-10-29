@@ -21,7 +21,7 @@ crashing.
   - Results are displayed in ID order, because `get_photos_by_ids` uses `IN (...)`. Show them in Claude's ranked order. The saved album already uses rank order.
   - *Done when:* there are tests for ID validation and order, using a faked Anthropic client.
 
-- [ ] **1.2 Packaging: make face recognition optional and document the setuptools pin** — `pyproject.toml`, `requirements.txt`, README, CLAUDE.md
+- [x] **1.2 Packaging: make face recognition optional and document the setuptools pin** — `pyproject.toml`, `requirements.txt`, README, CLAUDE.md
   - Move `face_recognition` out of the required dependencies into a `faces` extra, along with `setuptools<81`. The README already says it's optional.
   - Delete `requirements.txt`, which duplicates `pyproject.toml`. Drop `piexif` and `tqdm`, which are never imported.
   - Update the README and CLAUDE.md install steps (`pip install dlib && pip install -e '.[faces,dev]'`).

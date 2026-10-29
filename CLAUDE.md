@@ -8,15 +8,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install (order matters — dlib must come first)
 python3 -m venv ~/.venvs/photoolz
 source ~/.venvs/photoolz/bin/activate
-pip install dlib
-pip install -e .
-pip install face_recognition  # optional, enables face clustering
+pip install dlib                  # only needed for the faces extra
+pip install -e '.[faces,dev]'     # faces = face_recognition + setuptools<81 (pkg_resources)
 
 # Run the CLI
 photoolz --help
 
-# Tests (CLIP and face detection are faked, so torch/dlib aren't needed)
-pip install -e '.[dev]'
+# Tests (CLIP and face detection are faked, so no model downloads or dlib)
 pytest
 ```
 
@@ -32,14 +30,14 @@ Photoolz is a local photo library CLI. It indexes photos once (storing metadata,
 
 1. `photoolz index <path>` runs a multi-stage pipeline (`indexer/pipeline.py`):
    - SHA256 dedup → EXIF extraction → CLIP embedding (batched) → face detection → quality scoring → FAISS index rebuild
-2. All subsequent commands read from SQLite (`~/.photoolz/photoolz.db`) and the FAISS index (`~/.photoolz/faiss.index`).
+2. All subsequent commands read from SQLite (`~/.photoolz/index.db`) and the FAISS index (`~/.photoolz/clip.faiss`, plus `clip_ids.npy` mapping index positions to photo IDs).
 
 **Module responsibilities:**
 
 | Module | Role |
 |---|---|
 | `config.py` | Loads `.env`; exposes `PHOTOOLZ_DATA_DIR`, `CLIP_MODEL`, `DEVICE` |
-| `db.py` | Thread-safe SQLite; all schema migrations via `photoolz db init` |
+| `db.py` | Thread-safe SQLite; schema is `CREATE TABLE IF NOT EXISTS` only (no migrations yet, see PLAN.md 5.2) |
 | `indexer/` | `scanner.py` finds files → `metadata.py` reads EXIF → `embedder.py` runs CLIP → `faces.py` runs face_recognition → `pipeline.py` orchestrates |
 | `search/` | `faiss_index.py` manages FAISS flat index; `query.py` embeds a text query and retrieves top-k, then `filters.py` applies SQL-based date/person/location filters |
 | `quality/` | `blur.py` (Laplacian variance) + `exposure.py` (histogram) → `scorer.py` aggregates; `duplicates.py` does two-stage pHash + CLIP matching |
@@ -64,9 +62,9 @@ Photoolz is a local photo library CLI. It indexes photos once (storing metadata,
 Copy `.env.example` to `.env`. Key variables:
 
 ```
-PHOTOOLZ_DATA_DIR=~/.photoolz/   # SQLite DB, FAISS index, thumbnails
+PHOTOOLZ_DATA_DIR=~/.photoolz/   # SQLite DB and FAISS index
 PHOTOOLZ_CLIP_MODEL=ViT-B-32     # Any open_clip model name
-PHOTOOLZ_DEVICE=auto             # cpu | cuda | mps
+PHOTOOLZ_DEVICE=cuda             # cpu | cuda | mps; unset = cuda if available, else cpu (mps is never auto-detected)
 ANTHROPIC_API_KEY=...            # Required for album propose only
 PHOTOOLZ_ALBUM_MODEL=claude-opus-5-5  # Optional
 ```

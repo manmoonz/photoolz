@@ -50,17 +50,16 @@ source ~/.venvs/photoolz/bin/activate
 # Install dlib before anything else — it compiles from source and takes ~5 minutes
 pip install dlib
 
-# Install photoolz and all remaining dependencies
+# Install photoolz with face detection
 # Note: torch alone is ~2 GB, so this download will take a while
-pip install -e /path/to/photoolz
-
-# Install face_recognition as a separate step after dlib is confirmed working
-pip install face_recognition
+pip install -e '/path/to/photoolz[faces]'
 ```
 
 **Why the order matters:** `face_recognition` depends on `dlib`. If you let `pip` install them together it will try to build `dlib` without the system libraries in place and fail. Installing `dlib` first lets you confirm it compiles cleanly before proceeding.
 
-**face_recognition is optional.** If it is not installed, `photoolz index` will still run but will print a warning and skip face detection. The `photoolz cluster faces` and `photoolz people` commands will have nothing to work with. You can install it later and re-run `photoolz index --force` to backfill face data.
+**Face detection is optional.** To skip it, leave out dlib and install with `pip install -e /path/to/photoolz` (no `[faces]`). `photoolz index` will print a warning and skip face detection, so `photoolz cluster faces` and `photoolz people` will have nothing to work with. You can install `[faces]` later and re-run `photoolz index --force` to fill in face data.
+
+The `faces` extra also pins `setuptools<81`. `face_recognition_models` imports `pkg_resources`, which setuptools 81 removed, and without it face detection fails to load. If `photoolz index` warns that face recognition is unavailable, the warning names the fix.
 
 Every time you open a new terminal, activate the venv before running any `photoolz` commands:
 
