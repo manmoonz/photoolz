@@ -63,3 +63,27 @@ def test_label_unknown_place_fails(env):
     result = CliRunner().invoke(cli, ["places", "label", "999", "Nowhere"])
     assert result.exit_code == 1
     assert "No place with ID 999" in result.output
+
+
+def test_reclustering_replaces_clusters_and_keeps_labels(env):
+    conn, paris, tokyo = env
+    db.label_geo_cluster(conn, _cluster_of(conn, paris[0]), "Paris")
+
+    for _ in range(2):
+        cluster_geolocations(conn, eps_km=1.0, min_samples=5)
+
+    rows = db.get_geo_clusters(conn)
+    assert len(rows) == 2  # not 6: old clusters are replaced, not piled up
+    assert sorted(r["label"] or "" for r in rows) == ["", "Paris"]
+    assert apply_sql_filters(conn, paris + tokyo, location_label="Paris") == paris
+
+
+def test_label_not_carried_to_a_cluster_that_moved_away(env):
+    conn, paris, _ = env
+    db.label_geo_cluster(conn, _cluster_of(conn, paris[0]), "Paris")
+    conn.execute(f"UPDATE photos SET gps_lat = 51.5007, gps_lon = -0.1246 "
+                 f"WHERE id IN ({','.join('?' * len(paris))})", paris)  # now in London
+    conn.commit()
+
+    cluster_geolocations(conn, eps_km=1.0, min_samples=5)
+    assert [r["label"] for r in db.get_geo_clusters(conn)] == [None, None]

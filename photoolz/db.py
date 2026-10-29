@@ -443,6 +443,18 @@ def label_geo_cluster(conn: sqlite3.Connection, cluster_id: int, label: str) -> 
     return cur.rowcount > 0
 
 
+def reset_geo_clusters(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Delete all geo clusters, returning the labeled ones (label, center) so labels can be carried over."""
+    with _write_lock:
+        labeled = conn.execute(
+            "SELECT label, center_lat, center_lon FROM geo_clusters WHERE label IS NOT NULL"
+        ).fetchall()
+        conn.execute("UPDATE photos SET geo_cluster_id = NULL")
+        conn.execute("DELETE FROM geo_clusters")
+        conn.commit()
+    return labeled
+
+
 def assign_geo_cluster(conn: sqlite3.Connection, photo_ids: list[int], cluster_id: int) -> None:
     with _write_lock:
         conn.executemany(

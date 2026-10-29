@@ -318,6 +318,8 @@ photoolz cluster geo
 photoolz cluster geo --eps-km 5.0
 ```
 
+Re-running replaces the previous clusters, so cluster IDs change. Names given with `photoolz places label` carry over to the new cluster nearest the old one, as long as it's within `--eps-km`.
+
 ---
 
 #### `photoolz places` — name locations

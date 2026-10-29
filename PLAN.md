@@ -44,7 +44,7 @@ crashing.
 
 ## 3. Correctness on re-runs
 
-- [ ] **3.1 `cluster geo` piles up clusters** — `clustering/geo_cluster.py`
+- [x] **3.1 `cluster geo` piles up clusters** — `clustering/geo_cluster.py`
   - Each run adds new `geo_clusters` rows without removing the old ones, so `stats` overcounts. Clear old clusters first, and keep labels from 2.1 where a new cluster lines up with a labeled old one (e.g. nearest center within the clustering radius).
 - [ ] **3.2 `cluster bursts` keeps old burst IDs** — `clustering/burst.py`
   - Reset `burst_group_id` to NULL before assigning new groups.
