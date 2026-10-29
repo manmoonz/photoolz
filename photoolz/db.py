@@ -65,7 +65,7 @@ CREATE INDEX IF NOT EXISTS idx_faces_person_id ON faces(person_id);
 CREATE TABLE IF NOT EXISTS people (
     id                      INTEGER PRIMARY KEY AUTOINCREMENT,
     name                    TEXT,
-    face_count              INTEGER,
+    face_count              INTEGER,  -- unused: counts are derived from faces (drop once migrations exist)
     representative_photo_id INTEGER REFERENCES photos(id),
     clustered_at            TEXT    NOT NULL
 );
@@ -334,6 +334,10 @@ def label_person(conn: sqlite3.Connection, person_id: int, name: str) -> None:
         conn.commit()
 
 
+# people.face_count goes stale when faces are re-detected, so counts are derived from faces
+_LIVE_FACE_COUNT = "(SELECT COUNT(*) FROM faces f WHERE f.person_id = p.id)"
+
+
 def merge_people(conn: sqlite3.Connection, person_ids: list[int]) -> int:
     """Merge multiple people clusters into one. Returns the surviving person ID.
 
@@ -343,8 +347,8 @@ def merge_people(conn: sqlite3.Connection, person_ids: list[int]) -> int:
     """
     placeholders = ",".join("?" * len(person_ids))
     rows = conn.execute(
-        f"SELECT id, name, face_count, representative_photo_id FROM people "
-        f"WHERE id IN ({placeholders}) ORDER BY face_count DESC",
+        f"SELECT p.id, p.name, {_LIVE_FACE_COUNT} AS face_count, p.representative_photo_id "
+        f"FROM people p WHERE p.id IN ({placeholders}) ORDER BY face_count DESC",
         person_ids,
     ).fetchall()
 
@@ -362,9 +366,6 @@ def merge_people(conn: sqlite3.Connection, person_ids: list[int]) -> int:
     if not surviving_name and named:
         surviving_name = named[0]["name"]
 
-    # Total face count across all merged clusters
-    total_faces = sum(r["face_count"] for r in rows)
-
     with _write_lock:
         # Reassign all faces from the other clusters to the survivor
         if others:
@@ -375,10 +376,7 @@ def merge_people(conn: sqlite3.Connection, person_ids: list[int]) -> int:
             other_placeholders = ",".join("?" * len(others))
             conn.execute(f"DELETE FROM people WHERE id IN ({other_placeholders})", others)
 
-        conn.execute(
-            "UPDATE people SET name=?, face_count=? WHERE id=?",
-            (surviving_name, total_faces, survivor_id),
-        )
+        conn.execute("UPDATE people SET name=? WHERE id=?", (surviving_name, survivor_id))
         conn.commit()
 
     return survivor_id
@@ -386,9 +384,10 @@ def merge_people(conn: sqlite3.Connection, person_ids: list[int]) -> int:
 
 def get_people(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
-        "SELECT p.*, ph.file_path as rep_path FROM people p "
-        "LEFT JOIN photos ph ON ph.id = p.representative_photo_id "
-        "ORDER BY p.face_count DESC"
+        f"SELECT p.id, p.name, p.representative_photo_id, p.clustered_at, "
+        f"{_LIVE_FACE_COUNT} AS face_count, ph.file_path AS rep_path FROM people p "
+        f"LEFT JOIN photos ph ON ph.id = p.representative_photo_id "
+        f"ORDER BY face_count DESC"
     ).fetchall()
 
 

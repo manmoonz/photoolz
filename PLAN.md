@@ -52,7 +52,7 @@ crashing.
   - `_` and `%` in folder names act as wildcards. Switch to the `substr()` prefix match that `get_photo_paths_under` / `relocate_paths` already use.
 - [x] **3.4 A changed CLIP model isn't detected** — `indexer/pipeline.py`, `search/faiss_index.py`
   - `photos.clip_model` is stored but never checked. When `PHOTOOLZ_CLIP_MODEL` differs from the stored model, refuse to search or rebuild with a clear "re-index with --force" message. Today it fails when building the index if the embedding sizes differ, or quietly gives bad results if they match.
-- [ ] **3.5 People face counts drift** — `db.py`, `clustering/faces_cluster.py`
+- [x] **3.5 People face counts drift** — `db.py`, `clustering/faces_cluster.py`
   - `people.face_count` is a stored count that goes stale when faces are replaced on re-index. Recompute it from `faces` after clustering and re-indexing, or derive it in `get_people`.
 
 ## 4. Smaller fixes
@@ -67,5 +67,5 @@ crashing.
 ## 5. Workflow gaps (features)
 
 - [ ] **5.1 Acting on flagged photos.** Add `photoolz flagged list` / `flagged restore <id...>` / `flagged move <dest>` (move the files to a trash folder, then drop them from the index). Never delete files outright.
-- [ ] **5.2 Schema migrations.** Add a `schema_version` table (or `PRAGMA user_version`) and ordered migrations in `db.init_schema`, before any change that adds a column.
+- [ ] **5.2 Schema migrations.** Add a `schema_version` table (or `PRAGMA user_version`) and ordered migrations in `db.init_schema`, before any change that adds a column. The first migration can drop the unused `people.face_count` column (counts are now derived from `faces`).
 - [ ] **5.3 Test coverage.** Add tests for search filters (`search/filters.py`), burst detection, geo clustering and duplicate grouping.
